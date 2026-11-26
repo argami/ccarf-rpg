@@ -242,6 +242,42 @@
 #dFlee b{ color:#e8d7a8; font-weight:600 }
 #dFlee:hover{ background:rgba(200,162,74,.18); border-color:rgba(212,172,86,.85); color:#e2b95e }
 #dFlee.on{ display:inline-block }
+
+/* ---------- modal de confirmacion ---------- */
+#confirm{
+  position:fixed; inset:0; z-index:60; display:none;
+  align-items:center; justify-content:center;
+  background:rgba(4,6,10,.72); backdrop-filter:blur(2px)
+}
+#confirm.on{ display:flex }
+#confirm .cfw{
+  width:min(430px,86vw); box-sizing:border-box;
+  background:linear-gradient(180deg,#161b26,#0e1219);
+  border:1px solid rgba(200,162,74,.5); border-radius:12px;
+  padding:22px 24px 18px; text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.6)
+}
+#confirm h2{
+  margin:0 0 10px; font-size:13px; letter-spacing:.18em; text-transform:uppercase;
+  color:#e2b95e; font-weight:600
+}
+#confirm p{
+  margin:0 0 18px; font-size:13.5px; line-height:1.55; color:#cfc4ab; letter-spacing:.02em
+}
+#confirm p b{ color:#f2e3b6 }
+#confirm .cfrow{ display:flex; gap:10px; justify-content:center }
+#confirm button{
+  font:inherit; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  padding:9px 16px; border-radius:8px; cursor:pointer
+}
+#confirm .gho{
+  background:transparent; border:1px solid rgba(255,255,255,.22); color:#b6ab95
+}
+#confirm .gho:hover{ border-color:rgba(255,255,255,.4); color:#e8dcc2 }
+#confirm .pri{
+  background:rgba(200,162,74,.16); border:1px solid rgba(212,172,86,.75); color:#f2e3b6
+}
+#confirm .pri:hover{ background:rgba(200,162,74,.3) }
 </style>
 
 
@@ -278,6 +314,14 @@
     <div class="dtimer"><i id="dTimer"></i></div>
     <div class="dres" id="dRes"></div>
     <button id="dFlee" title="salir del combate perdiendo un poco de experiencia">escapar <b>−10 exp</b></button>
+  </div>
+</div></div>
+<div id="confirm"><div class="cfw">
+  <h2 id="cfTitle"></h2>
+  <p id="cfText"></p>
+  <div class="cfrow">
+    <button class="gho" id="cfNo"></button>
+    <button class="pri" id="cfYes"></button>
   </div>
 </div></div>
 <div id="gate">
@@ -3144,9 +3188,10 @@ function frame(){
       m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(vx, vz) + Math.PI, dt, 6);
       setAct(m, 'Walk');
     } else {
-      m.aggro = false; m.cool = 16;
-      toast2(m.name + ' te ha visto');
-      empezarDuelo('mob', m);
+      // se planta delante y espera: el combate lo empieza el jugador con un clic
+      setAct(m, 'Idle');
+      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz) + Math.PI, dt, 4);
+      if(!m.aviso){ m.aviso = true; toast2(m.name + ' te ha visto: clic para pelear'); }
     }
   });
   campoAvisoNivel();
@@ -3537,7 +3582,7 @@ function herir(n){
 }
 
 function tickDuelo(dt){
-  if(!D || D.locked) return;
+  if(!D || D.locked || modalAbierto) return;
   D.t -= dt;
   $('dTimer').style.width = Math.max(0, D.t / T_PREGUNTA * 100) + '%';
   if(D.t <= 0) agotado();
@@ -3641,7 +3686,9 @@ function escaparDuelo(){
 }
 
 document.addEventListener('keydown', e=>{
-  if(e.key === 'Escape' && D && D.kind === 'mob'){ e.preventDefault(); escaparDuelo(); }
+  if(e.key !== 'Escape') return;
+  if(modalAbierto){ e.preventDefault(); if(window.__cfCancelar) window.__cfCancelar(); return; }
+  if(D && D.kind === 'mob'){ e.preventDefault(); pedirEscape(); }
 });
 
 setTimeout(()=>{
@@ -3653,6 +3700,44 @@ setTimeout(()=>{
   }catch(e){}
 }, 0);
 
+
+// ---------------- modales de confirmacion ----------------
+let modalAbierto = false;
+function confirmar(titulo, texto, si, no, onSi, onNo){
+  $('cfTitle').textContent = titulo;
+  $('cfText').innerHTML = texto;
+  $('cfYes').textContent = si;
+  $('cfNo').textContent = no;
+  $('confirm').classList.add('on');
+  modalAbierto = true;
+  const cerrar = ()=>{
+    $('confirm').classList.remove('on');
+    modalAbierto = false;
+    $('cfYes').onclick = null; $('cfNo').onclick = null; $('confirm').onclick = null;
+  };
+  $('cfYes').onclick = ()=>{ cerrar(); if(onSi) onSi(); };
+  $('cfNo').onclick  = ()=>{ cerrar(); if(onNo) onNo(); };
+  $('confirm').onclick = e=>{ if(e.target && e.target.id === 'confirm'){ cerrar(); if(onNo) onNo(); } };
+  window.__cfCancelar = ()=>{ cerrar(); if(onNo) onNo(); };
+}
+
+function pedirEscape(){
+  if(!D || D.kind !== 'mob' || modalAbierto) return;
+  const suelo = (G.lvl - 1) * EXP_NIVEL;
+  const coste = Math.round(G.exp - Math.max(suelo, G.exp - COSTE_ESCAPE));
+  confirmar('Dejar el combate',
+    coste > 0
+      ? 'Vas a escaparte del combate y perder <b>' + coste + ' de experiencia</b>. La criatura no muere: solo te alejas.'
+      : 'Vas a escaparte sin perder experiencia, porque ya estás en el suelo de tu nivel. La criatura no muere.',
+    'escapar', 'seguir luchando',
+    ()=> escaparDuelo());
+}
+
+try{
+  if($('dFlee')) $('dFlee').onclick = ()=> pedirEscape();
+  // gancho de prueba: simula un reto de otro jugador
+  window.__cfSimulaReto = (nombre)=> pvpRecibe({ t:'reto', de:'remoto-1', nombre: nombre || 'gama' });
+}catch(e){}
 
 syncHUD();
 try {
@@ -3696,9 +3781,13 @@ function pvpOtro(){          // jugador remoto más cercano, a menos de 4 m
 // la E reta (o acepta); devuelve true si ya se ha ocupado de la tecla
 function pvpTecla(){
   if(retoPend){
-    const r = retoPend; retoPend = null;
-    pvpEnviar({ t:'acepta', to: r.de });
-    toast2('aceptas el reto de ' + r.nombre);
+    if(modalAbierto) return true;
+    const r = retoPend;
+    confirmar('Reto de ' + r.nombre,
+      'Te reta a un duelo de ' + PVP_RONDAS + ' preguntas. Los dos peleáis con la vida que lleváis: cada fallo duele.',
+      'aceptar', 'rechazar',
+      ()=>{ retoPend = null; pvpEnviar({ t:'acepta', to: r.de }); toast2('aceptas el reto de ' + r.nombre); },
+      ()=>{ retoPend = null; toast2('rechazas el reto de ' + r.nombre); });
     return true;
   }
   const otro = pvpOtro();
@@ -3798,7 +3887,7 @@ function pvpResponder(idx){
   $('dRes').innerHTML = 'esperando al rival…';
 }
 function pvpTick(dt){
-  if(retoPend){ retoPend.t -= dt; if(retoPend.t <= 0) retoPend = null; }
+  if(retoPend && !modalAbierto){ retoPend.t -= dt; if(retoPend.t <= 0) retoPend = null; }
   if(!pvp || pvp.locked) return;
   pvp.t -= dt;
   $('dTimer').style.width = Math.max(0, pvp.t / PVP_T * 100) + '%';
@@ -3917,6 +4006,25 @@ function objetivoEn(cx, cy){
     if(!p.root || p.isMe || !cercaDeMi(p.pos.x, p.pos.z)) continue;
     ver(p.pos.x, p.root.position.y + 1.1, p.pos.z, p, 'player');
   }
+  // tercera pasada: lo que se te pega encima. Si nada ha respondido y hay una
+  // criatura a menos de 6 m, vale la que esté más cerca del clic en pantalla
+  if(!mejor){
+    let cand = null, candD = Infinity;
+    for(const m of mobs){
+      if(m.dead || !m.g.visible) continue;
+      const d3 = Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z);
+      if(d3 > 6) continue;
+      const alto = Math.max(1, (m.talla || 2) * .5);
+      const p = new THREE.Vector3(m.pos.x, m.g.position.y + alto, m.pos.z).project(cam);
+      if(p.z > 1) continue;
+      const sx = (p.x * .5 + .5) * r.width + r.left, sy = (-p.y * .5 + .5) * r.height + r.top;
+      const d2 = Math.hypot(sx - cx, sy - cy);
+      const tope = d3 < 2 ? Infinity : 260;      // pegado: cualquier punto de la pantalla vale
+      if(d2 > tope) continue;
+      if(d2 < candD){ candD = d2; cand = m; }
+    }
+    if(cand) mejor = { kind:'mob', ref: cand };
+  }
   return mejor;
 }
 
@@ -3999,7 +4107,7 @@ let nClics = 0;
 canvasEl.addEventListener('pointerdown', e => { pulsX = e.clientX; pulsY = e.clientY; }, true);
 canvasEl.addEventListener('pointerup', e => {
   nClics++;
-  if(Math.hypot(e.clientX - pulsX, e.clientY - pulsY) > 6) return;   // ha sido arrastre de cámara
+  if(Math.hypot(e.clientX - pulsX, e.clientY - pulsY) > 10) return;   // ha sido arrastre de cámara
   if(!jugando || G.inDuel || G.dead) return;
   sel = objetivoEn(e.clientX, e.clientY);
   pintarSel();
