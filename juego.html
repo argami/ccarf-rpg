@@ -472,6 +472,31 @@
   #barra{ gap:6px; padding:6px 8px; bottom:12px }
   #barra .b{ width:40px; height:40px }
 }
+
+/* ---------- aviso: sin WebGL no hay 3D ---------- */
+#noGL{
+  position:fixed; inset:0; z-index:120; display:flex; align-items:center; justify-content:center;
+  padding:24px; background:radial-gradient(120% 90% at 50% 0%,#141c26,#0a0d12 70%)
+}
+#noGL .ng{
+  width:min(520px,94vw); box-sizing:border-box; padding:22px 24px 20px;
+  background:linear-gradient(180deg,rgba(28,36,48,.96),rgba(14,19,26,.98));
+  border:1px solid rgba(200,162,74,.45); border-radius:12px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6); color:#cfc4ab;
+  font-size:13px; line-height:1.65
+}
+#noGL h2{
+  margin:0 0 10px; font-size:12px; letter-spacing:.2em; text-transform:uppercase;
+  color:#e2b95e; font-weight:600
+}
+#noGL p{ margin:0 0 10px }
+#noGL ol{ margin:0; padding-left:18px }
+#noGL li{ margin-bottom:6px }
+#noGL b{ color:#ecd9a5; font-weight:600 }
+#noGL code{
+  font:inherit; font-size:12px; padding:1px 5px; border-radius:4px;
+  background:rgba(255,255,255,.06); color:#e6dcc4
+}
 </style>
 
 
@@ -628,6 +653,42 @@ scene.background = new THREE.Color('#c9dbe3');
 scene.fog = new THREE.Fog('#c9dbe3', 90, 520);
 
 const cam = new THREE.PerspectiveCamera(55, W/H, 0.1, 900);
+
+// ---------- WebGL: si no hay, se dice en vez de romperse ----------
+function puedeWebGL(){
+  try{
+    const c = document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
+  }catch(e){ return false; }
+}
+function sinWebGL(){
+  try{
+    const l = document.getElementById('load'); if(l) l.remove();
+    const g = document.getElementById('gate'); if(g) g.classList.add('off');
+    const ld = document.getElementById('ldTxt'); if(ld) ld.textContent = '';
+  }catch(e){}
+  if(document.getElementById('noGL')) return;
+  const d = document.createElement('div');
+  d.id = 'noGL';
+  d.innerHTML =
+    '<div class="ng">' +
+      '<h2>este navegador no puede dibujar en 3d</h2>' +
+      '<p>El Reino de las Cartas necesita <b>WebGL</b> y aquí está desactivado, ' +
+      'así que no hay manera de montar el mundo.</p>' +
+      '<ol>' +
+        '<li>Activa la <b>aceleración por hardware</b> en los ajustes del navegador ' +
+            'y vuelve a abrir esta página.</li>' +
+        '<li>En Chrome o Edge: <code>chrome://settings/system</code> → ' +
+            '«Usar gráficos acelerados cuando estén disponibles».</li>' +
+        '<li>Si estás en un escritorio remoto, una máquina virtual o con los ' +
+            'controladores gráficos bloqueados, prueba en otro equipo.</li>' +
+        '<li>En Safari: Ajustes → Avanzado → «Usar aceleración por hardware».</li>' +
+      '</ol>' +
+    '</div>';
+  document.body.appendChild(d);
+}
+
+if(!puedeWebGL()){ sinWebGL(); await new Promise(function(){}); }
 const rnd = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
 rnd.setSize(W,H); rnd.setPixelRatio(Math.min(devicePixelRatio,2));
 rnd.shadowMap.enabled = true; rnd.shadowMap.type = THREE.PCFSoftShadowMap;
