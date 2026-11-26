@@ -4124,9 +4124,45 @@ function cerrarDuelo(res){
   try{ if(jugando) guardarPartida(); }catch(e){}   // el combate se guarda al momento
 }
 
+
+// ---- morir corta el combate y suelta a todo el que te iba detras ----
+function cancelarCombates(){
+  try{
+    // el duelo de criatura se corta aqui mismo y se cierra el careo
+    if(typeof D !== 'undefined' && D) D = null;
+    if(typeof G !== 'undefined') G.inDuel = false;
+    const dv = $('duel'); if(dv) dv.classList.remove('on');
+    document.body.classList.remove('induell');
+    const fl = $('dFlee'); if(fl) fl.classList.remove('on');
+    const dt = $('dTimer'); if(dt) dt.style.width = '0%';
+    const dr = $('dRes'); if(dr) dr.textContent = '';
+    const dop = $('dOpts'); if(dop) dop.innerHTML = '';
+    const dq = $('dQ'); if(dq) dq.textContent = '';
+    if(typeof ultimoMob !== 'undefined') ultimoMob = null;
+
+    // el PvP en curso se da por perdido y se limpia
+    if(typeof pvp !== 'undefined' && pvp){
+      try{ pvpEnviar({ t:'timeout', d: pvp.id, r: pvp.r }); }catch(e){}
+      pvp = null;
+    }
+    if(typeof retoPend !== 'undefined') retoPend = null;
+
+    // todas las criaturas que te estaban persiguiendo sueltan y se alejan
+    const lista = (window.__dbg && __dbg.mobs) ? __dbg.mobs : [];
+    lista.forEach(function(m){
+      if(!m || m.dead) return;
+      if(m.aggro || m.cerca || m.target){
+        m.cerca = 0; m.target = null;
+        try{ apartarDelCombate(m); }catch(e){ m.aggro = false; m.cool = 25; }
+      }
+    });
+  }catch(e){}
+}
+
 function morir(){
   G.dead = true; G.inDuel = false;
   duelEl.classList.remove('on');
+  cancelarCombates();   // caer cancela la pelea y suelta a los que te acosaban
   deathEl.classList.add('on');
   setTimeout(()=>{
     deathEl.classList.remove('on');
@@ -4605,7 +4641,7 @@ function pvpFin(fin){
     G.inDuel = false;
   };
 }
-try { window.__dbg.pvp = {
+try { window.__dbg.cancelarCombates = cancelarCombates; window.__dbg.morir = morir; window.__dbg.pvp = {
   get estado(){ return pvp; }, get reto(){ return retoPend; },
   tecla: pvpTecla, responder: pvpResponder, recibir: pvpRecibe
 }; } catch(e) {}
