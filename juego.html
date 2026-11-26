@@ -284,6 +284,14 @@
   background:rgba(200,162,74,.16); border:1px solid rgba(212,172,86,.75); color:#f2e3b6
 }
 #confirm .pri:hover{ background:rgba(200,162,74,.3) }
+  /* aviso de presencia a los lados del personaje */
+  #vigia{position:fixed;left:50%;top:calc(50% + 14px);transform:translate(-50%,-50%);
+         display:flex;gap:178px;font:700 26px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+         letter-spacing:.02em;color:#6f6b64;pointer-events:none;z-index:24;
+         transition:color .18s linear,opacity .18s linear;user-select:none}
+  /* el cuadro de seleccion no recibe clics, pero su boton si: si no, PELEAR
+     y RETAR eran decorativos y solo funcionaba la E */
+  #sel .pelear{pointer-events:auto}
 </style>
 
 
@@ -3079,6 +3087,36 @@ function frame(){
 
   // criaturas: flotan y giran
   const AGGRO = 14, AGGRO_JEFE = 20, ALCANCE = 3.1, PIERDE = 40;
+// aviso de presencia: gris a 2,4 radios, rojo pegado
+const VIGIA_R = AGGRO * 2.4;
+// ojo: estas constantes viven DENTRO de frame(), que se ejecuta 60 veces por
+// segundo — el elemento se crea una sola vez y se reutiliza
+const vigia = window.__vigia || (window.__vigia = (() => {
+  const d = document.createElement('div');
+  d.id = 'vigia';
+  d.innerHTML = '<span>&lt;&lt;&lt;</span><span>&gt;&gt;&gt;</span>';
+  document.body.appendChild(d);
+  return d;
+})());
+function vigiaTick(){
+  if(!jugando || G.dead){ vigia.style.opacity = 0; return; }
+  let dmin = Infinity;
+  for(const m of mobs){
+    if(m.dead || !m.g.visible) continue;
+    const d = Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z);
+    if(d < dmin) dmin = d;
+  }
+  const t = Math.max(0, Math.min(1, (VIGIA_R - dmin) / (VIGIA_R - AGGRO)));
+  // gris -> ambar -> rojo
+  const a = [0x6f, 0x6b, 0x64], b = [0xc2, 0x6a, 0x2a], c = [0xe5, 0x34, 0x2a];
+  const u = t < .5 ? t * 2 : 1, v = t < .5 ? 0 : (t - .5) * 2;
+  const p = a.map((x, i) => Math.round(x + (b[i] - x) * u));
+  const col = p.map((x, i) => Math.round(x + (c[i] - x) * v));
+  vigia.style.color = 'rgb(' + col.join(',') + ')';
+  vigia.style.opacity = t > .02 ? 0.45 + 0.55 * t : 0.28;
+  vigia.style.textShadow = t > .55 ? '0 0 10px rgba(229,52,42,.55), 0 1px 3px rgba(0,0,0,.95)'
+                                   : '0 1px 3px rgba(0,0,0,.95)';
+}
   function setAct(m, name){
     if(m.curAct === name || !m.acts[name]) return;
     const prev = m.acts[m.curAct];
@@ -3182,8 +3220,27 @@ function frame(){
     if(enCiudad(me.pos.x, me.pos.z)){ m.aggro = false; wanderMob(m, dt); return; }
 
     const radio = m.boss ? AGGRO_JEFE : AGGRO;
-    if(!m.aggro && dist < radio && m.cool <= 0) m.aggro = true;
-    if(m.aggro && dist > radio + PIERDE){ m.aggro = false; m.cool = 5; m.target = null; }
+    // se da cuenta poco a poco: dentro de 2,4 radios acumula atencion, y mas
+    // deprisa cuanto mas cerca; en el borde tarda casi 4 s en decidirse
+    // si ya te perdio una vez, no vuelve a engancharse hasta que te acercas
+    // de verdad (1,2 radios): si no, se queda en un tira y afloja en el limite
+    if(m.calma && dist > radio * 3.5) m.calma = false;
+    const avista = radio * (m.calma ? 1.2 : 2.4);
+    if(dist < avista && m.cool <= 0){
+      const cerca = 1 - dist / avista;
+      m.sospecha = Math.min(1, (m.sospecha || 0) + dt * (0.35 + 1.6 * cerca) / 1.2);
+      if(!m.aggro && m.sospecha >= 1){
+        m.aggro = true; m.aviso = true;
+        m.g.rotation.y = Math.atan2(dx, dz);   // te encara antes de correr
+        toast2(m.name + ' te ha visto');
+      }
+    } else {
+      m.sospecha = Math.max(0, (m.sospecha || 0) - dt * 0.55);
+    }
+    // y te pierde cuando de verdad te has alejado, no a media persecucion
+    if(m.aggro && dist > radio * 1.9){
+      m.aggro = false; m.cool = 6; m.target = null; m.sospecha = 0; m.aviso = false; m.calma = true;
+    }
 
     if(!m.aggro){ wanderMob(m, dt); return; }
 
@@ -3197,7 +3254,7 @@ function frame(){
       }
       m.pos.x = nx; m.pos.z = nz;
       m.g.position.set(m.pos.x, h(m.pos.x, m.pos.z), m.pos.z);
-      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(vx, vz) + Math.PI, dt, 6);
+      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(vx, vz), dt, 6);
       setAct(m, 'Walk');
     } else {
       // se planta delante y espera: el combate lo empieza el jugador con un clic
@@ -3207,6 +3264,7 @@ function frame(){
     }
   });
   campoAvisoNivel();
+  vigiaTick();
   if(sel && sel.kind === 'mob'){
     const o = sel.ref, d = Math.hypot(o.pos.x - me.pos.x, o.pos.z - me.pos.z);
     if(o.dead || d > 24){ sel = null; selBox.classList.remove('on'); }
@@ -3237,7 +3295,7 @@ function frame(){
     toast.textContent = posadaCerca.p.nombre + ' — pulsa E para entrar';
   } else if(near && !SHOT && !G.inDuel && !G.dead && !tiendaAbierta){
     toast.style.display='block';
-    toast.textContent = near.m.name + ' — pulsa E para retarlo';
+    toast.textContent = near.m.name + ' — pulsa E para pelear';
   } else if(!G.inDuel && !G.dead && toastT <= 0) toast.style.display='none';
 
   // comer: canalización que se pierde si te retan
@@ -4172,9 +4230,16 @@ function pintarSel(){
   const boton = selBox.querySelector('#selPelear');
   const dObj = Math.hypot(o.pos.x - me.pos.x, o.pos.z - me.pos.z);
   const aTiro = sel.kind === 'mob' ? dObj <= 20 : dObj <= 12;
-  boton.textContent = sel.kind === 'mob' ? 'pelear' : 'retar';
+  // sólo la ficha de otro jugador lleva botón: en la de una criatura se pelea
+  // con la E, como pediste
+  const esJugador = sel.kind === 'player';
+  boton.style.display = esJugador ? 'block' : 'none';
+  boton.textContent = 'retar';
   boton.disabled = G.inDuel || G.dead || !aTiro;
-  boton.title = aTiro ? '' : 'demasiado lejos: acércate para poder pelear';
+  boton.title = aTiro ? '' : 'demasiado lejos: acércate para retarlo';
+  const pista = selBox.querySelector('.pista');
+  if(pista) pista.textContent = esJugador ? 'clic = retar · la E también vale'
+                                          : 'pulsa E para pelear';
   selBox.classList.add('on');
 }
 
@@ -4240,7 +4305,18 @@ canvasEl.addEventListener('pointerup', e => {
   if(!jugando || G.inDuel || G.dead) return;
   sel = objetivoEn(e.clientX, e.clientY);
   pintarSel();
-  // el clic solo enseña la ficha; para pelear, el boton del cuadro o la E
+  // a otro jugador se le reta con el clic: es un reto, no una pelea a traicion
+  if(sel && sel.kind === 'player'){
+    const p = sel.ref;
+    const d = Math.hypot(p.pos.x - me.pos.x, p.pos.z - me.pos.z);
+    if(!G.inDuel && !G.dead && d <= 12 && performance.now() - (window.__retoT || 0) > 2500){
+      window.__retoT = performance.now();
+      let rid = null;
+      try { for(const [k, v] of remotos) if(v === p){ rid = k; break; } } catch(err) {}
+      if(rid){ pvpEnviar({ t:'reto', to: rid }); toast2('retas a ' + p.name + ' — espera su respuesta'); }
+      else pvpTecla();
+    }
+  }
 });
 
 addEventListener('resize', ()=>{
