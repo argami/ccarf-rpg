@@ -25,18 +25,19 @@
         background:rgba(18,15,12,.6);border:1px solid rgba(255,255,255,.13);
         padding:7px 13px;border-radius:9px}
   #foot b{color:#e2b95e}
-  #mini{position:fixed;right:18px;top:16px;width:186px;height:186px;border-radius:10px;
+  #mini{position:fixed;right:18px;top:16px;width:186px;height:186px;border-radius:50%;
         background:#0e120e;border:1px solid rgba(255,255,255,.18);overflow:hidden;
-        box-shadow:0 8px 26px rgba(0,0,0,.45);cursor:grab;touch-action:none}
-  #mini.big{width:min(560px,52vw);height:min(560px,52vw);cursor:grab}
+        box-shadow:0 0 0 1px rgba(255,255,255,.22), 0 12px 34px rgba(0,0,0,.55);
+        cursor:grab;touch-action:none}
+  #mini.big{width:min(560px,52vw);height:min(560px,52vw);border-radius:50%;cursor:grab}
   #mini canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:auto}
   #mini .mmbtn{position:absolute;bottom:6px;width:22px;height:22px;border-radius:6px;
         background:rgba(14,12,10,.72);border:1px solid rgba(255,255,255,.22);color:#f0e8d4;
         font-size:12px;line-height:20px;text-align:center;cursor:pointer;user-select:none;z-index:3}
   #mini .mmbtn:hover{background:rgba(232,185,94,.28)}
-  #mmCen{left:6px} #mmBig{left:32px}
-  #mini .mmpie{position:absolute;right:8px;bottom:8px;font-size:10px;letter-spacing:.1em;
-        color:#cfd8c8;text-shadow:0 1px 3px #000;pointer-events:none;z-index:3}
+  #mmCen{left:calc(50% - 26px);bottom:13px} #mmBig{left:calc(50% + 4px);bottom:13px}
+  #mini .mmpie{position:absolute;left:0;right:0;bottom:42px;text-align:center;font-size:9px;
+        letter-spacing:.1em;color:#cfd8c8;text-shadow:0 1px 3px #000;pointer-events:none;z-index:3}
   .dot{position:absolute;width:6px;height:6px;border-radius:3px;display:none}
   .tag{position:fixed;transform:translate(-50%,-130%);font-size:11px;letter-spacing:.08em;
        text-shadow:0 1px 4px rgba(0,0,0,.95);white-space:nowrap;pointer-events:none}
@@ -1933,9 +1934,9 @@ function makeDot(){ const d = document.createElement('div'); d.className = 'dot'
 function mmAt(){}
 const castleDot = makeDot(), innDots = INNS.map(()=> makeDot());
 
-const MM_X0 = -820, MM_Z0 = -820, MM_SPAN = 1640;   // ventana horneada, en metros
+const MM_X0 = -570, MM_Z0 = -570, MM_SPAN = 1140;   // ventana horneada, en metros
 const MM_VIEW_MINI = 260;                            // el panel pequeño enseña 260 m a tu alrededor
-const MM_N = 1536;                                   // resolución horneada (1,07 m/px)
+const MM_N = 1280;                                   // resolución horneada (0,89 m/px)
 const MMB = { listo: false, alto: null, img: null, contornos: null };
 
 const mmc = document.createElement('canvas');
@@ -1966,6 +1967,23 @@ function mmMedir(){
   mm.escTope = mm.W / 90;                     // hasta ~90 m de ancho
   if(!mm.zoom) mm.zoom = 1;
   mm.esc = mm.escMin * mm.zoom;
+}
+
+/* --- ruido barato (valor + fBm): para que las fronteras no sean circunferencias --- */
+function mmHash(ix, iz){
+  let h = (ix | 0) * 374761393 + (iz | 0) * 668265263;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return ((h ^ (h >> 16)) >>> 0) / 4294967296;
+}
+function mmNoise(x, z){
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const fx = x - ix, fz = z - iz;
+  const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+  const a = mmHash(ix, iz), b = mmHash(ix + 1, iz), c = mmHash(ix, iz + 1), d = mmHash(ix + 1, iz + 1);
+  return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+}
+function mmFbm(x, z){
+  return mmNoise(x / 110, z / 110) * .55 + mmNoise(x / 44, z / 44) * .30 + mmNoise(x / 17, z / 17) * .15;
 }
 
 /* --- colores por altura: de la vaguada al alto --- */
@@ -2012,19 +2030,28 @@ function mmHornear(){
         const hh = h(wx, wz);
         alto[y * MM_N + x] = hh;
         let c = mmColor(hh);
-        // dentro de un dominio manda el suelo real de ese microclima; fuera, la altura
+        // dentro de un dominio manda el suelo real de ese microclima; fuera, la altura.
+        // La frontera se deforma con ruido (una sola vez por píxel) y se funde en ~40 m:
+        // nada de discos, cada bioma entra en el siguiente como un terreno de verdad.
+        const warp = (mmFbm(wx, wz) - .5) * 110;
         let wr = 0, wg = 0, wb = 0, wt = 0;
         for(let i = 0; i < MM_ZONAS.length; i++){
           const zn = MM_ZONAS[i];
           const d = Math.hypot(wx - zn.cx, wz - zn.cz);
-          if(d >= zn.r) continue;
-          const a = Math.min(1, (zn.r - d) / 22);        // borde de 22 m
+          const rEff = zn.r + warp;
+          if(d >= rEff + 40) continue;
+          const a = Math.min(1, Math.max(0, (rEff - d) / 26));   // degradado
           const t = .5 + .5 * Math.sin(wx * .07 + wz * .05 + i * 1.7);   // moteado suave
           wr += (zn.g0[0] + (zn.g1[0] - zn.g0[0]) * t) * a;
           wg += (zn.g0[1] + (zn.g1[1] - zn.g0[1]) * t) * a;
           wb += (zn.g0[2] + (zn.g1[2] - zn.g0[2]) * t) * a;
           wt += a;
         }
+        // textura: grano fino y manchas medianas, como el papel de un mapa
+        const grano = mmNoise(wx / 6.5, wz / 6.5);
+        const mancha = mmNoise(wx / 26, wz / 26);
+        const tex = .90 + .17 * grano + .10 * mancha;
+        c = [c[0] * tex, c[1] * tex, c[2] * tex];
         if(wt > 0){
           const w = Math.min(1, wt);
           c = [c[0]*(1-w) + (wr/wt)*w, c[1]*(1-w) + (wg/wt)*w, c[2]*(1-w) + (wb/wt)*w];
@@ -2086,50 +2113,28 @@ function mmVectores(){
     traza(2.4 * m, 'rgba(150,196,214,.95)');
   }
   // territorios de las criaturas
-  if(typeof TERRITORIOS !== 'undefined'){
-    Object.keys(TERRITORIOS).forEach(dom=>{
-      TERRITORIOS[dom].forEach(t=>{
-        const poly = t[5]; if(!poly || poly.length < 3) return;
-        g.beginPath();
-        poly.forEach((p, i)=>{ const q = P(p[0], p[1]); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); });
-        g.closePath();
-        g.strokeStyle = t[2] ? 'rgba(255,176,110,.55)' : 'rgba(255,236,190,.40)';
-        g.lineWidth = t[2] ? 2.2 : 1.3;
-        g.setLineDash(t[2] ? [6, 5] : []);
-        g.stroke(); g.setLineDash([]);
-      });
-    });
-  }
-  // ciudades (zona protegida alrededor de cada posada)
-  const TR = (typeof TOWN_R !== 'undefined') ? TOWN_R : 30;
+  // posadas: el recinto amurallado, dibujado como un pueblo y no como un círculo
   INNS.forEach(p=>{
     const q = P(p.x, p.z);
-    g.beginPath(); g.arc(q[0], q[1], TR * m, 0, Math.PI*2);
-    g.fillStyle = 'rgba(255,226,160,.15)'; g.fill();
-    g.strokeStyle = 'rgba(255,226,160,.75)'; g.lineWidth = 2; g.setLineDash([5, 4]); g.stroke(); g.setLineDash([]);
+    const r = Math.max(4, 13 * m);
+    g.fillStyle = 'rgba(58,44,26,.28)';
+    g.fillRect(q[0]-r, q[1]-r, r*2, r*2);
+    g.strokeStyle = 'rgba(255,226,160,.85)'; g.lineWidth = Math.max(1.2, 1.6*m);
+    g.strokeRect(q[0]-r, q[1]-r, r*2, r*2);
+    // tejados: tres manchas de edificios
+    g.fillStyle = 'rgba(60,44,24,.75)';
+    const b = Math.max(1.4, 3.4*m);
+    g.fillRect(q[0]-r*.55, q[1]-r*.55, b*2, b*2);
+    g.fillRect(q[0]+r*.05, q[1]-r*.15, b*2, b*2);
+    g.fillRect(q[0]-r*.30, q[1]+r*.30, b*2, b*2);
   });
-  // frontera de cada dominio
-  MM_ZONAS.forEach(zn=>{
-    const q = P(zn.cx, zn.cz);
-    g.beginPath(); g.arc(q[0], q[1], zn.r * m, 0, Math.PI*2);
-    g.strokeStyle = 'rgba(255,255,255,.34)'; g.lineWidth = 2.2; g.setLineDash([9, 7]);
-    g.stroke(); g.setLineDash([]);
-  });
-  // el reino: contorno de lo jugable, para que se vea dónde acaba el mundo
-  {
-    const q = P(0, 0);
-    g.beginPath(); g.arc(q[0], q[1], 505 * m, 0, Math.PI*2);
-    g.strokeStyle = 'rgba(232,225,205,.45)'; g.lineWidth = 2.4; g.setLineDash([14, 10]);
-    g.stroke(); g.setLineDash([]);
-    g.strokeStyle = 'rgba(12,16,10,.35)'; g.lineWidth = 1;
-    g.stroke();
-  }
-  // plaza y castillo
+  // plaza empedrada: es cuadrada, así que se dibuja cuadrada
   if(typeof PLAZA_R !== 'undefined'){
-    const q = P(0, 0);
-    g.beginPath(); g.arc(q[0], q[1], PLAZA_R * m, 0, Math.PI*2);
-    g.fillStyle = 'rgba(214,206,186,.22)'; g.fill();
-    g.strokeStyle = 'rgba(232,226,210,.7)'; g.lineWidth = 1.6; g.stroke();
+    const q = P(0, 0), r = PLAZA_R * m;
+    g.fillStyle = 'rgba(214,206,186,.30)';
+    g.fillRect(q[0]-r, q[1]-r, r*2, r*2);
+    g.strokeStyle = 'rgba(235,229,214,.75)'; g.lineWidth = Math.max(1, 1.4*m);
+    g.strokeRect(q[0]-r, q[1]-r, r*2, r*2);
   }
   MMB.contornos = c;
 }
@@ -2189,7 +2194,7 @@ function mmCurvas(g, W, H){
         if((a < L) !== (c < L)) pts.push(inter(a, c, x1, y1, x1, y2));
         if(pts.length < 2) continue;
         const maestra = (L % 10 === 0);
-        cg.strokeStyle = maestra ? 'rgba(24,30,18,.60)' : 'rgba(24,30,18,.30)';
+        cg.strokeStyle = maestra ? 'rgba(88,95,78,.40)' : 'rgba(88,95,78,.18)';
         cg.beginPath(); cg.moveTo(pts[0][0], pts[0][1]); cg.lineTo(pts[1][0], pts[1][1]); cg.stroke();
       }
     }
@@ -2217,6 +2222,9 @@ function mmDibujar(){
   const g = mmctx, W = mm.W, H = mm.H;
   g.setTransform(mm.dpr, 0, 0, mm.dpr, 0, 0);
   g.clearRect(0, 0, W, H);
+  const RADIO = Math.min(W, H) / 2;
+  g.save();
+  g.beginPath(); g.arc(W / 2, H / 2, RADIO, 0, Math.PI * 2); g.clip();
   g.fillStyle = '#0b0f0b'; g.fillRect(0, 0, W, H);
 
   if(mm.siguiendo){ mm.cx = me.pos.x; mm.cz = me.pos.z; }
@@ -2269,15 +2277,36 @@ function mmDibujar(){
     g.fillStyle = '#efe9d8'; g.fillRect(x-r, y-r, r*2, r*2);
     g.strokeStyle = '#6d6350'; g.lineWidth = 1; g.strokeRect(x-r, y-r, r*2, r*2);
   }
+  // territorios de las criaturas: solo cuando hay zoom para leerlos
+  if(mm.esc > .62 && typeof TERRITORIOS !== 'undefined'){
+    Object.keys(TERRITORIOS).forEach(dom=>{
+      TERRITORIOS[dom].forEach(t=>{
+        const poly = t[5]; if(!poly || poly.length < 3) return;
+        g.beginPath();
+        poly.forEach((p, i)=>{ const q = mmA(p[0], p[1]); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); });
+        g.closePath();
+        g.strokeStyle = t[2] ? 'rgba(255,170,96,.55)' : 'rgba(255,238,196,.34)';
+        g.lineWidth = t[2] ? 1.8 : 1;
+        g.setLineDash(t[2] ? [5, 4] : []);
+        g.stroke(); g.setLineDash([]);
+      });
+    });
+  }
+
   // criaturas cargadas
   if(jugando) mobs.forEach(m=>{
     if(m.dead || !m.g.parent) return;
     const [x, y] = mmA(m.g.position.x, m.g.position.z);
     if(x < -8 || y < -8 || x > W+8 || y > H+8) return;
-    g.beginPath(); g.arc(x, y, (m.boss ? 4.2 : 2.7) * k, 0, Math.PI*2);
-    g.fillStyle = m.boss ? '#ff7a4d' : '#e0705f';
+    const rr = (m.boss ? 4.6 : 3.1) * k;
+    g.beginPath(); g.arc(x, y, rr, 0, Math.PI*2);
+    g.fillStyle = '#e5342a';                       // todos los enemigos, en rojo
     g.fill();
-    if(m.aggro){ g.strokeStyle = '#ffd36b'; g.lineWidth = 1.2; g.stroke(); }
+    const anillo = m.aggro ? Math.min(1, mm.esc * 1.4) : 0;
+    g.beginPath(); g.arc(x, y, rr + 2.2 * k + anillo * 2, 0, Math.PI*2);
+    g.strokeStyle = m.aggro ? 'rgba(255,214,120,.95)' : 'rgba(255,255,255,.55)';
+    g.lineWidth = 1.2 * k + (m.boss ? .8 : 0);
+    g.stroke();
   });
   // otros jugadores
   for(const [rid, pl] of remotos){
@@ -2303,17 +2332,45 @@ function mmDibujar(){
 
   // rosa de los vientos y escala
   g.fillStyle = 'rgba(240,236,220,.92)'; g.font = 'bold 11px monospace';
-  g.textAlign = 'center'; g.fillText('N', W - 13, 15);
-  g.beginPath(); g.moveTo(W-13, 19); g.lineTo(W-13, 30); g.strokeStyle = 'rgba(240,236,220,.6)';
+  g.textAlign = 'center'; g.fillText('N', W / 2, 17);
+  g.beginPath(); g.moveTo(W/2, 21); g.lineTo(W/2, 31); g.strokeStyle = 'rgba(240,236,220,.55)';
   g.lineWidth = 1; g.stroke();
   if(W >= 300){                     // la barra de escala no cabe en el panel pequeño
     const esc = mmEscalaBonita(), ancho = esc * mm.esc;
+    const bx = Math.round(W * .17), by = Math.round(H * .79);
     g.strokeStyle = 'rgba(240,236,220,.85)'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(10, H - 27); g.lineTo(10 + ancho, H - 27); g.stroke();
-    g.beginPath(); g.moveTo(10, H - 30); g.lineTo(10, H - 24); g.moveTo(10+ancho, H - 30); g.lineTo(10+ancho, H - 24); g.stroke();
+    g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + ancho, by); g.stroke();
+    g.beginPath(); g.moveTo(bx, by - 3); g.lineTo(bx, by + 3); g.moveTo(bx+ancho, by - 3); g.lineTo(bx+ancho, by + 3); g.stroke();
     g.font = '10px monospace'; g.textAlign = 'left';
     g.fillStyle = 'rgba(240,236,220,.9)';
-    g.fillText(esc + ' m', 12, H - 33);
+    g.fillText(esc + ' m', bx + 2, by - 6);
+  }
+
+  // el dominio bajo el cursor se ilumina y dice cómo se llama
+  if(typeof mm.hoverZona === 'number' && mm.hoverZona >= 0 && mm.hover){
+    const zn = MM_ZONAS[mm.hoverZona];
+    const [zx, zy] = mmA(zn.cx, zn.cz);
+    const rad = zn.r * mm.esc * 1.08;
+    const grd = g.createRadialGradient(zx, zy, rad * .15, zx, zy, rad);
+    grd.addColorStop(0, 'rgba(255,250,230,.30)');
+    grd.addColorStop(.7, 'rgba(255,250,230,.18)');
+    grd.addColorStop(1, 'rgba(255,250,230,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(zx, zy, rad, 0, Math.PI*2); g.fill();
+
+    const zt = ZONES[mm.hoverZona] || {};
+    const txt = (zt.dom || '') + (zt.biome ? ' · ' + zt.biome : '');
+    g.font = 'bold 12px monospace';
+    const ancho = g.measureText(txt).width + 14;
+    const bx = Math.min(W - ancho/2 - 4, Math.max(ancho/2 + 4, mm.hover.x));
+    const by = Math.max(18, mm.hover.y - 14);
+    g.fillStyle = 'rgba(14,12,10,.86)';
+    g.fillRect(bx - ancho/2, by - 14, ancho, 20);
+    g.strokeStyle = 'rgba(255,226,160,.75)'; g.lineWidth = 1;
+    g.strokeRect(bx - ancho/2, by - 14, ancho, 20);
+    g.fillStyle = 'rgba(250,245,232,.98)'; g.textAlign = 'center';
+    g.fillText(txt, bx, by);
+    g.textAlign = 'start';
   }
 
   // etiquetas: solo en la vista grande, si no se amontonan
@@ -2337,15 +2394,8 @@ function mmDibujar(){
       if(borde){ g.strokeStyle = borde; g.lineWidth = 1; g.strokeText(txt, x, y); }
       return true;
     };
-    // primero los dominios, que son lo importante
-    MM_ZONAS.forEach((zn, i)=>{
-      const [x, y] = mmA(zn.cx, zn.cz);
-      if(x < -60 || y < -20 || x > W+60 || y > H+20) return;
-      const nom = (ZONES[i] && ZONES[i].dom) ? ZONES[i].dom : '';
-      if(nom) letrero(nom, x, y + 22, 12, 'rgba(250,245,232,.96)', null, 'rgba(12,16,10,.85)');
-    });
     // y luego las posadas, solo cuando hay sitio (a vista completa no caben)
-    if(mm.esc > .52) INNS.forEach(p=>{
+    if(mm.esc > .44) INNS.forEach(p=>{
       const [x, y] = mmA(p.x, p.z);
       if(x < -60 || y < -20 || x > W+60 || y > H+20) return;
       letrero(p.nombre || ('P' + p.zone), x, y - 10, 10, 'rgba(255,226,160,.98)', null, 'rgba(12,16,10,.85)');
@@ -2353,15 +2403,39 @@ function mmDibujar(){
     g.textAlign = 'start';
   }
 
+  g.restore();
+
   // pie: zona y pista de controles
   const zn = (typeof zonaAt === 'function') ? zonaAt(me.pos.x, me.pos.z) : null;
   mmPie.textContent = mini.classList.contains('big')
-    ? 'rueda: acercar · arrastra: mover · M: cerrar'
+    ? 'rueda · arrastra · M'
     : '';
   g.textAlign = 'start';
 }
 
 try { window.__dbg.mm = mm; } catch(e) {}
+
+/* --- qué dominio hay bajo el cursor --- */
+function mmZonaEn(x, z){
+  const warp = (mmFbm(x, z) - .5) * 130;
+  let mejor = -1, bd = 1e9;
+  MM_ZONAS.forEach((zn, i)=>{
+    const d = Math.hypot(x - zn.cx, z - zn.cz);
+    if(d < zn.r + warp && d < bd){ bd = d; mejor = i; }
+  });
+  return mejor;
+}
+mini.addEventListener('pointermove', e=>{
+  if(mm.arrastrando){ mm.hoverZona = -1; return; }
+  const r = mini.getBoundingClientRect();
+  const px2 = e.clientX - r.left, py2 = e.clientY - r.top;
+  mm.hover = { x: px2, y: py2 };
+  mm.hoverZona = mmZonaEn(
+    mm.cx + (px2 - r.width/2) / mm.esc,
+    mm.cz + (py2 - r.height/2) / mm.esc
+  );
+});
+mini.addEventListener('pointerleave', ()=>{ mm.hover = null; mm.hoverZona = -1; });
 
 /* --- controles --- */
 mmMedir();
