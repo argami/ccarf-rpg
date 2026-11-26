@@ -3526,9 +3526,11 @@ function tickDuelo(dt){
   if(D.t <= 0) agotado();
 }
 
+let ultimoMob = null;
 function terminar(res){
   if(!D) return;
   const d = D; D = null;
+  if(d.kind === 'mob' && d.foe) ultimoMob = d.foe;
   const lines = {
     gana:  d.kind==='pvp'
       ? 'Has ganado. <b>+60 experiencia</b>, <b>+5 claudes</b>.'
@@ -3553,11 +3555,31 @@ function terminar(res){
   if(res === 'muerte') setTimeout(()=>cerrarDuelo('muerte'), 1400);
 }
 
+function apartarDelCombate(m){
+  // el bicho se queda atras y sin ganas de pelea unos segundos
+  if(m){ m.aggro = false; m.cool = 25; }
+  const x0 = m ? m.pos.x : me.pos.x, z0 = m ? m.pos.z : me.pos.z;
+  let destino = null;
+  for(let k = 0; k < 40 && !destino; k++){
+    const ang = Math.random() * Math.PI * 2;
+    const d = 46 + Math.random() * 18;
+    const x = x0 + Math.cos(ang) * d, z = z0 + Math.sin(ang) * d;
+    if(!isFinite(h(x, z))) continue;
+    if(colisiona(x, z)) continue;
+    destino = [x, z];
+  }
+  if(!destino) destino = [ultimaPosada.x, ultimaPosada.z + 4];
+  me.pos.set(destino[0], 0, destino[1]);
+  me.heading = Math.atan2(x0 - destino[0], z0 - destino[1]);
+  syncHUD();
+}
+
 function cerrarDuelo(res){
   duelEl.classList.remove('on');
   document.body.classList.remove('induell');
   G.inDuel = false;
   if(res === 'muerte'){ morir(); return; }
+  if(ultimoMob){ apartarDelCombate(ultimoMob); ultimoMob = null; }
   toast2(res==='gana' ? 'duelo ganado' : res==='pierde' ? 'duelo perdido' : 'empate');
 }
 
