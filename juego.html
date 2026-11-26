@@ -696,11 +696,32 @@ async function cargarModelo(id){
   return MON_PEND[id];
 }
 
+// territorio de una criatura: círculo doble dibujado sobre el terreno
+function anilloTerritorio(m){
+  const g = new THREE.Group();
+  [1, .962].forEach((f, k)=>{
+    const N = 80, pts = [];
+    for(let i=0;i<=N;i++){
+      const a = i/N*Math.PI*2;
+      const x = m.terr.x + Math.cos(a)*m.terr.r*f;
+      const z = m.terr.z + Math.sin(a)*m.terr.r*f;
+      pts.push(new THREE.Vector3(x, h(x,z) + .38 + k*.02, z));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const l = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: '#ffe9b0', transparent:true, opacity: k ? .5 : .2, depthWrite:false }));
+    l.renderOrder = 2;
+    g.add(l);
+  });
+  scene.add(g);
+  return g;
+}
+
 function planZona(z){
   const defs = [];
   z.species.forEach((id,i)=>{
     const boss = id === z.boss;
-    const a = i*2.1 + z.id*0.7 + 0.4;
+    const a = i*2.6 + z.id*0.7 + 0.4;   // sin dos criaturas en el mismo punto
     const rr = z.r*(boss ? .18 : (.34 + (i%3)*.2));
     defs.push({zone:z, id, boss,
       x: z.cx + Math.cos(a)*rr,
@@ -754,6 +775,7 @@ function crearMob(d){
     g:root, ring, mixer, acts, el, boss:!!d.boss, zone:d.zone,
     name: MON_NAME[d.id], dom:d.zone.id, beaten:false,
     talla:d.h, pos:new THREE.Vector3(d.x,0,d.z), home:{x:d.x,z:d.z},
+    terr:{x:d.x, z:d.z, r: 13 + (d.zone.id % 3)*3},
     wanderT: 1 + Math.random()*3, target:null,
     curAct:'Idle', aggro:false, cool:0, dead:false,
     die(){
@@ -778,6 +800,7 @@ function crearMob(d){
       }, 180000);
     }
   };
+  if(!mob.boss) mob.terrLine = anilloTerritorio(mob);
   (ZONE_MOBS[d.zone.id] = ZONE_MOBS[d.zone.id] || []).push(mob);
   mobs.push(mob);
 }
@@ -795,6 +818,8 @@ function descargarZona(z){
   (ZONE_MOBS[z.id] || []).forEach(m=>{
     scene.remove(m.g);
     if(m.ring){ scene.remove(m.ring); m.ring.material.dispose(); }
+    if(m.terrLine){ scene.remove(m.terrLine);
+      m.terrLine.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }); }
     if(m.el) m.el.remove();
     const i = mobs.indexOf(m);
     if(i >= 0) mobs.splice(i,1);
@@ -1779,8 +1804,8 @@ function frame(){
       m.wanderT = 2.5 + Math.random()*5;
       if(Math.random() < .3){ m.target = null; }
       else {
-        const a = Math.random()*6.283, rr = Math.random()*m.zone.r*.82;
-        m.target = {x: m.zone.cx + Math.cos(a)*rr, z: m.zone.cz + Math.sin(a)*rr};
+        const a = Math.random()*6.283, rr = Math.sqrt(Math.random())*m.terr.r*.76;
+        m.target = {x: m.terr.x + Math.cos(a)*rr, z: m.terr.z + Math.sin(a)*rr};
       }
     }
     if(!m.target){ setAct(m, 'Idle'); return; }
@@ -1791,6 +1816,9 @@ function frame(){
     m.pos.x += dx/d*sp*dt; m.pos.z += dz/d*sp*dt;
     m.g.position.set(m.pos.x, h(m.pos.x, m.pos.z), m.pos.z);
     m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz), dt, 3.4);
+    // si el paseo lo ha sacado del círculo, vuelve a casa
+    const ox = m.pos.x - m.terr.x, oz = m.pos.z - m.terr.z;
+    if(Math.hypot(ox, oz) > m.terr.r) m.target = {x: m.terr.x, z: m.terr.z};
     setAct(m, 'Walk');
   }
   if (jugando) mobs.forEach(m=>{
@@ -1810,7 +1838,9 @@ function frame(){
     if(m.aggro && dist > LEASH){ m.aggro = false; m.cool = 4; }
 
     if(m.aggro){
-      if(dist > ALCANCE){
+      const lejos = Math.hypot(m.pos.x - m.terr.x, m.pos.z - m.terr.z) > m.terr.r;
+      if(lejos){ m.aggro = false; m.cool = 6; m.target = null; }
+      else if(dist > ALCANCE){
         const vx = dx/dist, vz = dz/dist;
         m.pos.x += vx * 2.8 * dt;  m.pos.z += vz * 2.8 * dt;
         m.g.position.set(m.pos.x, h(m.pos.x, m.pos.z), m.pos.z);
