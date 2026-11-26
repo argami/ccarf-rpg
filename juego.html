@@ -207,12 +207,40 @@
   #sel .bar i{display:block;height:100%;background:#b7452f;transition:width .2s ease}
   #sel .pista{color:#7f7768;font-size:9px;letter-spacing:.1em;margin-top:6px}
   @media(max-height:620px){#sel{bottom:88px}}
+  /* ---------- HUD: nivel, nombre, claudes ---------- */
+  #hud .top{display:flex;align-items:center;gap:9px;margin-bottom:2px}
+  #hud .lvl{width:23px;height:23px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
+            font-size:11px;line-height:1;color:#f6e2ac;border:1px solid rgba(212,172,86,.9);
+            background:radial-gradient(circle at 35% 28%,rgba(224,182,74,.32),rgba(224,182,74,.06));
+            box-shadow:0 0 0 1px rgba(0,0,0,.35), inset 0 0 6px rgba(255,225,150,.18)}
+  #hud .who{flex:1 1 auto;min-width:0;font-size:13px;letter-spacing:.12em;color:#f4ebd6;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #hud .coins{display:flex;align-items:center;gap:5px;color:#e9ca79;font-size:12px;
+              font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  #hud .coins i{display:block;width:11px;height:11px;border-radius:50%;
+                background:radial-gradient(circle at 34% 30%,#fff0c0,#dcb75c 55%,#8a6a1f);
+                box-shadow:0 0 0 1px rgba(0,0,0,.45), inset 0 0 3px rgba(255,255,255,.5)}
+  #hud .coins b{font-weight:400}
+  #myCode{position:static;margin-left:4px;background:rgba(255,255,255,.06);
+          border:1px solid rgba(255,255,255,.16);color:#cbbfa6;border-radius:8px;
+          padding:5px 8px;font:inherit;font-size:9.5px;letter-spacing:.16em;cursor:pointer}
+  #zone{display:none!important}
+  #mmZona{position:fixed;right:18px;top:24px;width:186px;text-align:center;z-index:23;
+          pointer-events:none;font-size:9px;letter-spacing:.15em;color:#f0e6ca;
+          text-shadow:0 1px 3px rgba(0,0,0,.95);opacity:.92}
+  @media(max-width:720px){#mmZona{width:132px;right:12px;top:20px;font-size:8px}}
 </style>
+
 
 <div id="load">CARGANDO EL MUNDO…</div>
 <div id="hud">
+  <div class="top">
+    <span class="lvl" id="hLvl" title="nivel">1</span>
+    <span class="who" id="hName">jugador</span>
+    <span class="coins" title="claudes"><i></i><b id="hCoins">0</b></span>
+    <button id="myCode" title="tu código de jugador">CÓDIGO</button>
+  </div>
   <div id="zone">D1 · AGENTES</div>
-  <button id="myCode" title="tu código de jugador">CÓDIGO</button>
   <div class="bars">
     <div class="row"><span class="lbl">VIDA</span><div class="bar hp"><i style="width:100%"></i></div><span class="num">100/100</span></div>
     <div class="row"><span class="lbl">EXP</span><div class="bar xp"><i style="width:0%"></i></div><span class="num">nivel 1 · 0/144</span></div>
@@ -220,6 +248,7 @@
 </div>
 <div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> hablar</div>
 <div id="mini"></div>
+<div id="mmZona">D1 · AGENTES</div>
 <div id="toast"></div>
 <div id="duel"><div class="dwrap">
   <div class="dtop">
@@ -1299,7 +1328,7 @@ function pintarTienda(){
   document.getElementById('shId').textContent = posadaActual.id;
   document.getElementById('shSub').textContent = 'posada';
   document.getElementById('shLugar').textContent = posadaActual.nombre;
-  document.getElementById('shZone').textContent = G.coins + ' monedas';
+  document.getElementById('shZone').textContent = G.coins + ' claudes';
   document.getElementById('shHp').style.width = Math.max(0,Math.min(100,G.hp/G.hpMax*100)) + '%';
   document.getElementById('shCoins').style.width = Math.max(0,Math.min(100,G.coins/40*100)) + '%';
   const opts = document.getElementById('shOpts');
@@ -3332,7 +3361,10 @@ function syncHUD(){
   document.querySelector('#hud .bar.xp i').style.width = pct + '%';
   document.querySelector('#hud .bar.xp').nextElementSibling.textContent =
     (G.lvl>=NIVEL_TOPE ? 'nivel 5 · tope' : 'nivel '+G.lvl+' · '+Math.round(enNivel)+'/'+EXP_NIVEL);
-  $('zone').textContent = zonaEtiqueta + '   ·   ' + G.coins + ' monedas';
+  const lvlEl = $('hLvl');   if(lvlEl) lvlEl.textContent = G.lvl;
+  const nmEl  = $('hName');  if(nmEl)  nmEl.textContent = (me && me.nombre) || 'jugador';
+  const coEl  = $('hCoins'); if(coEl)  coEl.textContent = G.coins;
+  const znEl  = $('mmZona'); if(znEl)  znEl.textContent = zonaEtiqueta;
 }
 
 function darExp(n){
@@ -3499,8 +3531,8 @@ function terminar(res){
   const d = D; D = null;
   const lines = {
     gana:  d.kind==='pvp'
-      ? 'Has ganado. <b>+60 experiencia</b>, <b>+5 monedas</b>.'
-      : 'Criatura vencida. <b>+12 experiencia</b>, <b>+2 monedas</b>.',
+      ? 'Has ganado. <b>+60 experiencia</b>, <b>+5 claudes</b>.'
+      : 'Criatura vencida. <b>+12 experiencia</b>, <b>+2 claudes</b>.',
     pierde:'Has perdido. No hay experiencia: el fallo ya costó vida.',
     empate:'Empate: nadie cede. Sin premio para ninguno.',
     muerte:'Te quedas sin vida en mitad del duelo.'
@@ -3705,7 +3737,7 @@ function pvpFin(fin){
   $('dRes').innerHTML = empate
     ? '<b>empate.</b> nadie cede: sin premio.'
     : gane
-      ? '<b>ganas el duelo.</b> +' + (fin.exp || 60) + ' experiencia, +' + (fin.coins || 5) + ' monedas.'
+      ? '<b>ganas el duelo.</b> +' + (fin.exp || 60) + ' experiencia, +' + (fin.coins || 5) + ' claudes.'
       : '<b>pierdes el duelo.</b> ' + String((d && d.nombres[d.otro]) || 'el rival') + ' se lleva la experiencia.';
   $('dOpts').innerHTML = '<button class="dopt" id="dClose" style="text-align:center">continuar</button>';
   $('dClose').onclick = ()=>{
