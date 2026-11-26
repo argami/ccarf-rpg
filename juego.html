@@ -319,7 +319,7 @@ const ZONES = [
   {id:4,dom:'PROMPTING',biome:'bosque',cx:177,cz:-243,r:165,ground:['#4d6a44','#5f7b4d'],accent:'#4f7a52',boss:'grnFTziU8u',species:['grnFTziU8u','GcttdvsqsQ','j4rVPvxyLg','54QyRcsogk','ypEYhCImAB','LnfIziKv4o']},
   {id:5,dom:'CONTEXTO',biome:'sabana',cx:-177,cz:-243,r:165,ground:['#c8b273','#ad9457'],accent:'#c2a961',boss:'LlwD0QNUPj',species:['5vO2YJsPEf','wuerCFCWNR','3rUm1cN3yp','LlwD0QNUPj','xGYmeDpfTu','Mo2ky6vkf8']}
 ];
-const INN_SPOTS = [[0,182],[170,56],[-170,56],[106,-146],[-176,-222],[0,120]];
+const INN_SPOTS = [[0,420],[400,130],[-400,130],[248,-341],[-248,-341],[0,190]];
 function cercaPosada(x, z){ return INN_SPOTS.some(s=>Math.hypot(s[0]-x, s[1]-z) < 16); }
 
 // ---------------- mundo (se construye al entrar) ----------------
@@ -852,10 +852,43 @@ function lineaTerritorio(m){
   return line;
 }
 
+// tres tallas: pequeña (1 pregunta), mediana (2) y grande/jefe (3)
+const TALLAS = [2.0, 2.9, 3.8];
+const POR_ZONA = 10;          // las mismas criaturas en todas las zonas, sin contar jefes
+
+function puntosDentro(poly, n){
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for(const p of poly){ x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+                        z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+  const cand = [];
+  for(let i = 1; i <= 7; i++) for(let j = 1; j <= 7; j++){
+    const x = x0 + (x1 - x0) * i / 8, z = z0 + (z1 - z0) * j / 8;
+    if(enPoligono(x, z, poly)) cand.push([x, z]);
+  }
+  if(!cand.length) cand.push([(x0 + x1) / 2, (z0 + z1) / 2]);
+  const out = [];
+  for(let k = 0; k < n; k++) out.push(cand[Math.floor(k * cand.length / n) % cand.length]);
+  return out;
+}
+
 function planZona(z){
   const t = TERRITORIOS[z.id] || [];
-  return t.map(q => ({ zone:z, id:q[0], boss:!!q[2], x:q[3], z:q[4],
-                       h: q[2] ? 4.6 : 2.1 + (z.id % 3) * 0.45, poly:q[5] }));
+  const plan = [];
+  t.filter(q => !!q[2]).forEach(q => {
+    plan.push({ zone:z, id:q[0], boss:true, x:q[3], z:q[4], h:4.6, poly:q[5] });
+  });
+  const presas = t.filter(q => !q[2]);
+  if(!presas.length) return plan;
+  const reparto = presas.map(q => puntosDentro(q[5] || [[q[3], q[4]]], 4));
+  for(let i = 0; i < POR_ZONA; i++){
+    const k = i % presas.length;
+    const q = presas[k];
+    const puntos = reparto[k];
+    const p = puntos[Math.floor(i / presas.length) % puntos.length];
+    plan.push({ zone:z, id:q[0], boss:false, x:p[0], z:p[1],
+                h:TALLAS[plan.length % TALLAS.length], poly:q[5] });
+  }
+  return plan;
 }
 
 function crearMob(d){
@@ -949,6 +982,7 @@ function crearMob(d){
       }, 90000);
     }
   };
+  mob.qs = d.h >= 4 ? 3 : d.h >= 2.4 ? 2 : 1;   // preguntas según la talla
   if(!d.sinLinea) mob.terrLine = lineaTerritorio(mob);
   (ZONE_MOBS[d.zone.id] = ZONE_MOBS[d.zone.id] || []).push(mob);
   mobs.push(mob);
@@ -1168,11 +1202,11 @@ function marmolPiedra(){
 // ================= posadas =================
 // seis, estáticas: una en la puerta de cada zona y una en la plaza
 const INNS = [
-  {id:'P1', zone:1, nombre:'Posada de la Pradera', x:0,   z:182},
-  {id:'P2', zone:2, nombre:'Posada del Desierto',  x:170, z:56},
-  {id:'P3', zone:3, nombre:'Posada de la Nieve',   x:-170, z:56},
-  {id:'P4', zone:4, nombre:'Posada del Bosque',    x:106, z:-146},
-  {id:'P5', zone:5, nombre:'Posada de la Sabana',  x:-176, z:-222},
+  {id:'P1', zone:1, nombre:'Posada de la Pradera', x:0,   z:420},
+  {id:'P2', zone:2, nombre:'Posada del Desierto',  x:400, z:130},
+  {id:'P3', zone:3, nombre:'Posada de la Nieve',   x:-400, z:130},
+  {id:'P4', zone:4, nombre:'Posada del Bosque',    x:248, z:-341},
+  {id:'P5', zone:5, nombre:'Posada de la Sabana',  x:-248, z:-341},
 ];
 
 const MERCA = [
@@ -3303,24 +3337,27 @@ function empezarDuelo(kind, foe){
   const banco = poolDe(dom);
   const usadas = new Set();
   const preguntas = [];
-  for(let i=0;i<3;i++){
+  const nPreg = kind === 'pvp' ? 3 : Math.max(1, Math.min(3, (foe && foe.qs) || 3));
+  for(let i = 0; i < nPreg; i++){
     let c; let tries=0;
     do { c = banco[Math.floor(Math.random()*banco.length)]; tries++; }
     while(usadas.has(c.q) && tries < 40);
     usadas.add(c.q); preguntas.push(c);
   }
-  D = { kind, foe, dom, preguntas, i:0, aciertos:0, fallos:0, foeAciertos:0,
+  D = { kind, foe, dom, preguntas, nPreg, necesarias: kind === 'pvp' ? 2 : Math.ceil(nPreg / 2),
+        i:0, aciertos:0, fallos:0, foeAciertos:0,
         ronda:0, rondaRes:[], botP: 0.62, locked:false, t: T_PREGUNTA, out:null };
   duelEl.classList.add('on');
   $('dFoeName').textContent = (kind==='pvp' ? foe.name : (foe && foe.name) || ('GUARDIÁN D'+dom)).toUpperCase();
-  $('dKind').textContent = kind==='pvp' ? 'duelo espejo' : 'criatura · 3 preguntas';
+  $('dKind').textContent = kind==='pvp' ? 'duelo espejo' :
+    'criatura · ' + nPreg + (nPreg === 1 ? ' pregunta' : ' preguntas');
   pintarDuelo();
   preguntar();
 }
 
 function pintarDuelo(){
   $('dhpMe').style.width = Math.max(0, G.hp/G.hpMax*100) + '%';
-  const foePct = D.kind==='pvp' ? 100 : Math.min(100, D.aciertos / 2 * 100);
+  const foePct = D.kind==='pvp' ? 100 : Math.min(100, D.aciertos / D.necesarias * 100);
   $('dhpFoe').style.width = foePct + '%';
   const total = D.kind==='pvp' ? 5 : 3;
   $('dRounds').innerHTML = Array.from({length: total}, (_,i)=>{
@@ -3367,7 +3404,7 @@ function responder(idx){
     if(G.hp <= 0) return terminar('muerte');
     setTimeout(()=>{
       D.i++;
-      if(D.i >= 3 || D.aciertos >= 2) terminar(D.aciertos >= 2 ? 'gana' : 'pierde');
+      if(D.i >= D.nPreg || D.aciertos >= D.necesarias) terminar(D.aciertos >= D.necesarias ? 'gana' : 'pierde');
       else { pintarDuelo(); preguntar(); }
     }, 1900);
   } else {
