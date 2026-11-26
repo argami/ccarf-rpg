@@ -3142,7 +3142,7 @@ function frame(){
   // criaturas: flotan y giran
   const AGGRO = 14, AGGRO_JEFE = 20, ALCANCE = 3.1, PIERDE = 40;
 // aviso de presencia: gris a 2,4 radios, rojo pegado
-const VIGIA_R = AGGRO * 2.4;
+const VIGIA_R = AGGRO * 1.35;
 // ojo: estas constantes viven DENTRO de frame(), que se ejecuta 60 veces por
 // segundo — el aviso se crea una sola vez y se reutiliza
 const vigia = window.__vigia || (window.__vigia = (() => {
@@ -3165,15 +3165,17 @@ const vigia = window.__vigia || (window.__vigia = (() => {
 })());
 function vigiaTick(){
   if(!jugando || G.dead){ vigia.style.opacity = 0; return; }
-  let dmin = Infinity;
+  // el aviso mide cada criatura con SU radio: los jefes ven mas lejos
+  let t = 0;
   for(const m of mobs){
     if(m.dead || !m.g.visible) continue;
+    const rad = m.boss ? AGGRO_JEFE : AGGRO;
     const d = Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z);
-    if(d < dmin) dmin = d;
+    const tm = Math.max(0, Math.min(1, (rad * 1.35 - d) / (rad * 0.35)));
+    if(tm > t) t = tm;
   }
-  const t = Math.max(0, Math.min(1, (VIGIA_R - dmin) / (VIGIA_R - AGGRO)));
-  // solo aparece cuando ya está cerca: t=0.45 son ~25 m (33,6 m de radio)
-  const vis = t <= .45 ? 0 : Math.min(1, (t - .45) / .55);
+  // gris a 1,35 radios (19 m), rojo al llegar a 1 radio (14 m): justo cuando ataca
+  const vis = t <= .1 ? 0 : Math.min(1, (t - .1) / .9);
   // el aviso va pegado al torso, no al centro de la pantalla
   const v = new THREE.Vector3(me.pos.x, (me.root ? me.root.position.y : 0) + 0.62, me.pos.z).project(cam);
   vigia.style.left = Math.round((v.x * .5 + .5) * innerWidth) + 'px';
@@ -3291,26 +3293,30 @@ function vigiaTick(){
     if(enCiudad(me.pos.x, me.pos.z)){ m.aggro = false; wanderMob(m, dt); return; }
 
     const radio = m.boss ? AGGRO_JEFE : AGGRO;
-    // se da cuenta poco a poco: dentro de 2,4 radios acumula atencion, y mas
-    // deprisa cuanto mas cerca; en el borde tarda casi 4 s en decidirse
-    // si ya te perdio una vez, no vuelve a engancharse hasta que te acercas
-    // de verdad (1,2 radios): si no, se queda en un tira y afloja en el limite
-    if(m.calma && dist > radio * 3.5) m.calma = false;
-    const avista = radio * (m.calma ? 1.2 : 2.4);
+    // la agresion va atada al aviso de la pantalla: sospecha dentro de 1,35
+    // radios, y solo se lanza cuando el aviso esta practicamente rojo
+    // (1,1 radios). Si te apartas y el aviso vuelve a gris, te suelta.
+    const avista = radio * 1.35, lanza = radio * 1.03, suelta = radio * 1.12;
+    // tope duro: jamas persigue de lejos. El enfriamiento solo se pone al
+    // soltarte de verdad; si se pusiera cada fotograma, la criatura quedaria
+    // ciega 4 s cada vez que te acercas desde lejos
+    if(dist > radio * 2.5 && (m.aggro || m.sospecha)){
+      m.aggro = false; m.sospecha = 0; m.aviso = false; m.calma = true; m.cool = 3;
+    }
     if(dist < avista && m.cool <= 0){
       const cerca = 1 - dist / avista;
-      m.sospecha = Math.min(1, (m.sospecha || 0) + dt * (0.35 + 1.6 * cerca) / 1.2);
-      if(!m.aggro && m.sospecha >= 1){
-        m.aggro = true; m.aviso = true;
+      m.sospecha = Math.min(1, (m.sospecha || 0) + dt * (1.1 + 2.2 * cerca));
+      if(!m.aggro && m.sospecha >= 1 && dist <= lanza){
+        m.aggro = true; m.aviso = true; m.calma = false;
         m.g.rotation.y = Math.atan2(dx, dz);   // te encara antes de correr
         toast2(m.name + ' te ha visto');
       }
     } else {
-      m.sospecha = Math.max(0, (m.sospecha || 0) - dt * 0.55);
+      m.sospecha = Math.max(0, (m.sospecha || 0) - dt * 1.2);
     }
-    // y te pierde cuando de verdad te has alejado, no a media persecucion
-    if(m.aggro && dist > radio * 1.9){
-      m.aggro = false; m.cool = 6; m.target = null; m.sospecha = 0; m.aviso = false; m.calma = true;
+    // en cuanto te apartas y el aviso se apaga, deja de seguirte
+    if(m.aggro && dist > suelta){
+      m.aggro = false; m.cool = 4; m.target = null; m.sospecha = 0; m.aviso = false; m.calma = true;
     }
 
     if(!m.aggro){ wanderMob(m, dt); return; }
