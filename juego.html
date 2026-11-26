@@ -39,6 +39,8 @@
   #mmLeyenda{position:fixed;transform:translateX(-50%);display:none;align-items:center;
         gap:9px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;
         color:#f4ecd6;z-index:5;pointer-events:none;white-space:nowrap;
+        background:rgba(12,10,8,.82);border:1px solid rgba(255,255,255,.14);
+        border-radius:999px;padding:4px 11px;
         text-shadow:0 1px 4px rgba(0,0,0,.95)}
   #mmLeyenda.on{display:flex}
   #mmLeyenda i{width:7px;height:7px;border-radius:50%;display:inline-block;
@@ -2135,9 +2137,10 @@ function mmHornear(){
           wt = .92;
         }
         // textura: grano fino y manchas medianas, como el papel de un mapa
-        const grano = mmNoise(wx / 6.5, wz / 6.5);
-        const mancha = mmNoise(wx / 26, wz / 26);
-        const tex = .90 + .17 * grano + .10 * mancha;
+        const rx = wx * .8 - wz * .6, rz = wx * .6 + wz * .8;   // girado, para que no se vea la rejilla
+        const grano = mmNoise(rx / 11, rz / 11);
+        const mancha = mmNoise(rx / 26, rz / 26);
+        const tex = .955 + .055 * grano + .045 * mancha + (Math.random() - .5) * .05;
         c = [c[0] * tex, c[1] * tex, c[2] * tex];
         if(wt > 0){
           const w = Math.min(1, wt);
@@ -2262,13 +2265,17 @@ function mmCurvas(g, W, H){
     for(let i = 0; i < nx; i++) A[j * nx + i] = h(wx0 + i * dw, wz);
   }
   cg.lineWidth = 1;
+  // el intervalo se adapta al zoom: si las curvas quedaran a menos de ~6 px se
+  // amontonan y forman una trama, así que se espacian
+  const pasoM = Math.max(2, Math.ceil((6 / mm.esc) / 2) * 2);
+  const maestraCada = pasoM * 5;
   for(let j = 0; j < nz - 1; j++){
     for(let i = 0; i < nx - 1; i++){
       const a = A[j*nx+i], b = A[j*nx+i+1], c = A[(j+1)*nx+i], d = A[(j+1)*nx+i+1];
       const mn = Math.min(a, b, c, d), mx = Math.max(a, b, c, d);
       if(mx - mn > 12) continue;                       // demasiado vertical: se omite
       const x1 = i*S, y1 = j*S, x2 = (i+1)*S, y2 = (j+1)*S;
-      for(let L = Math.ceil(mn/2)*2; L <= mx; L += 2){
+      for(let L = Math.ceil(mn / pasoM) * pasoM; L <= mx; L += pasoM){
         const pts = [];
         const inter = (h1, h2, ax, az, bx, bz)=>{
           const t = (L - h1) / (h2 - h1 || 1e-6);
@@ -2279,7 +2286,7 @@ function mmCurvas(g, W, H){
         if((c < L) !== (d < L)) pts.push(inter(c, d, x1, y2, x2, y2));
         if((a < L) !== (c < L)) pts.push(inter(a, c, x1, y1, x1, y2));
         if(pts.length < 2) continue;
-        const maestra = (L % 10 === 0);
+        const maestra = (L % maestraCada === 0);
         cg.strokeStyle = maestra ? 'rgba(88,95,78,.40)' : 'rgba(88,95,78,.18)';
         cg.beginPath(); cg.moveTo(pts[0][0], pts[0][1]); cg.lineTo(pts[1][0], pts[1][1]); cg.stroke();
       }
@@ -2437,6 +2444,7 @@ function mmDibujar(){
   if(typeof mm.hoverZona === 'number' && mm.hoverZona >= 0 && mm.hover){
     // se ilumina la región entera tal y como es, no un círculo alrededor del centro
     g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
     g.drawImage(mmMascara(mm.hoverZona, W, H), 0, 0, W, H);
 
   }
@@ -2495,8 +2503,7 @@ function mmLeyendaMarca(){
   if(typeof i !== 'number' || i < 0 || !ZONES[i]){ mmLey.classList.remove('on'); return; }
   const z = ZONES[i];
   const col = (z.ground && z.ground[1]) || z.accent || '#888';
-  const txt = '<i style="background:' + col + '"></i><span>' + (z.dom || '') + '</span><b>' +
-              (z.biome ? '· ' + z.biome : '') + '</b>';
+  const txt = '<i style="background:' + col + '"></i><span>' + (z.dom || '') + '</span>';
   if(mmLey.dataset.i !== String(i)){ mmLey.innerHTML = txt; mmLey.dataset.i = String(i); }
   mmLey.classList.add('on');
   mmLeyendaPos();
@@ -2507,7 +2514,7 @@ try { window.__dbg.mm = mm; window.__dbg.zonas = { idx: dominioIdx, mezcla: domi
 /* --- máscara de una región: píxeles que de verdad pertenecen a ese dominio --- */
 let mascCache = null;
 function mmMascara(idx, W, H){
-  const N = 96;
+  const N = 288;
   if(mascCache && mascCache.idx === idx && mascCache.W === W && mascCache.H === H &&
      Math.abs(mascCache.esc - mm.esc) < mm.esc * .01 &&
      Math.abs(mascCache.cx - mm.cx) < 8 && Math.abs(mascCache.cz - mm.cz) < 8) return mascCache.cv;
@@ -2520,13 +2527,17 @@ function mmMascara(idx, W, H){
     for(let x = 0; x < N; x++){
       const wx = mm.cx + (x / (N - 1) - .5) * anchoW;
       const o = (y * N + x) * 4;
+      // alfa suave: la propia franja de mezcla del dominio hace de degradado,
+      // así el borde del resaltado no tiene escalones
       let dentro = 0;
       if(typeof dominioMezcla === 'function'){
         const m = dominioMezcla(wx, wz);
-        dentro = m[0] === idx ? 1 : (m[1] === idx ? m[2] * .45 : 0);
+        if(m[0] === idx) dentro = m[2];
+        else if(m[1] === idx) dentro = 1 - m[2];
       }
+      const alfa = dentro * dentro * (3 - 2 * dentro);      // smoothstep
       d[o] = 255; d[o+1] = 246; d[o+2] = 214;
-      d[o+3] = Math.round(dentro * 96);
+      d[o+3] = Math.round(alfa * 92);
     }
   }
   g2.putImageData(img, 0, 0);
