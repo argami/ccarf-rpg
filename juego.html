@@ -490,6 +490,7 @@ function registrarInstancias(){
 function construirMundo(){
   construirPlaza();
   construirCastillo();
+  construirCampo();
   construirPosadas();
   construirRio();
   construirPuente();
@@ -751,7 +752,7 @@ const MON_SRC = {
 };
 const MON_NAME = {'37wofOCOzG':'Frog','3rUm1cN3yp':'Dragon','42djT5zJnx':'Armabee','54QyRcsogk':'Squidle','5vO2YJsPEf':'Orc','71gomWolax':'Goleling','AQ8zbFoDln':'Alpaking','GcttdvsqsQ':'Armabee Evolved','IGn9lhdama':'Cactoro','Iip30bDHmu':'Ghost','LlwD0QNUPj':'Dragon Evolved','LnfIziKv4o':'Demon','Mo2ky6vkf8':'Demon','RRliSQBP7r':'Alien','S7jYW6Amye':'Blue Demon','TX8r9WBXpe':'Ghost Skull','UdJudob66v':'Alpaking Evolved','Z9lddNpM1M':'Glub Evolved','ceRHrn8HHE':'Yeti','grnFTziU8u':'Mushroom King','iHEuXiH6Aj':'Goleling Evolved','j4rVPvxyLg':'Monkroose','t91lDHaqRW':'Tribal','wuerCFCWNR':'Dino','x59pqJscry':'Glub','xGYmeDpfTu':'Ninja','ypEYhCImAB':'Fish','zjr7CmWGER':'Hywirl'};
 const MON_GLTF = {};
-const RINGCOL = {1:'#7fa85c',2:'#d8b878',3:'#cfe0ef',4:'#4f7a52',5:'#c2a961'};
+const RINGCOL = {0:'#8fdcff', 1:'#7fa85c',2:'#d8b878',3:'#cfe0ef',4:'#4f7a52',5:'#c2a961'};
 
 // clip por sufijo: los packs de Quaternius nombran "CharacterArmature|Walk"
 function clipBy(animations, suffix){
@@ -816,9 +817,11 @@ const enPoligono = (x, z, poly) => {
   }
   return c;
 };
-const enCiudad = (x, z) =>
-  INNS.some(p => Math.hypot(p.x-x, p.z-z) < TOWN_R) ||
-  Math.hypot(x, z) < PLAZA_R + 10;      // la plaza también es refugio
+const enCiudad = (x, z) => {
+  if(INNS.some(p => Math.hypot(p.x-x, p.z-z) < TOWN_R)) return true;
+  const d0 = Math.hypot(x, z);
+  return d0 < PLAZA_R + 10 && d0 > CASTILLO_R;   // la plaza es refugio, el castillo no
+};
 function puntoLibre(m){
   if(!m.poly) return null;
   let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
@@ -889,7 +892,7 @@ function crearMob(d){
   }
 
   const mob = {
-    g:root, ring, mixer, acts, el, boss:!!d.boss, zone:d.zone,
+    g:root, ring, mixer, acts, el, boss:!!d.boss, zone:d.zone, castillo:!!d.castillo,
     id: d.id, name: MON_NAME[d.id], dom:d.zone.id, beaten:false,
     talla:d.h, pos:new THREE.Vector3(d.x,0,d.z), home:{x:d.x,z:d.z},
     terr:{x:d.x, z:d.z, r: 14}, poly: d.poly || null,
@@ -1062,7 +1065,15 @@ function construirCastillo(){
 
   const g = new THREE.Group();
   addCol(CASTILLO.x, CASTILLO.z, 18.7);       // la muralla no se atraviesa
-  const y0 = h(CASTILLO.x, CASTILLO.z) + .1;
+  // nada de castillos flotando: se baja hasta el punto más bajo de su huella
+  let yMin = h(CASTILLO.x, CASTILLO.z);
+  for(let i = 0; i < 32; i++){
+    const a = i / 32 * Math.PI * 2;
+    yMin = Math.min(yMin, h(CASTILLO.x + Math.cos(a) * 18.5, CASTILLO.z + Math.sin(a) * 18.5));
+  }
+  const y0 = yMin - .35;
+  const falda = new THREE.Mesh(new THREE.CylinderGeometry(18.45, 18.95, 10, 8), piedraOsc);
+  falda.position.y = -5.2; falda.receiveShadow = true; g.add(falda);
 
   // basamento
   const base = new THREE.Mesh(new THREE.CylinderGeometry(17.5, 18.5, 2.2, 8), piedraOsc);
@@ -2647,6 +2658,155 @@ let znHud = 0;
 let near = null;
 let toastT = 0;
 
+// ================== el castillo: campo de fuerza y guardianes ==================
+const CASTILLO_R = 24;            // radio del campo (la muralla está en 18,7)
+const CASTILLO_NIVEL = 5;         // el nivel máximo: aquí se acaba el juego
+let campo = null, campoAro = null, campoAviso = 0;
+let GUARDIANES_OK = false;
+
+function texturaRejilla(){
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 256, 256);
+  x.strokeStyle = 'rgba(150,225,255,.9)'; x.lineWidth = 2;
+  for(let i = 0; i <= 256; i += 32){
+    x.beginPath(); x.moveTo(i, 0); x.lineTo(i, 256); x.stroke();
+    x.beginPath(); x.moveTo(0, i); x.lineTo(256, i); x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(14, 5);
+  return t;
+}
+
+function construirCampo(){
+  const geo = new THREE.CylinderGeometry(CASTILLO_R, CASTILLO_R, 34, 72, 1, true);
+
+  // cuerpo: un velo azul tenue
+  const velo = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    color: '#63b6ff', transparent: true, opacity: .11, side: THREE.DoubleSide,
+    depthWrite: false }));
+  velo.position.set(CASTILLO.x, h(CASTILLO.x, CASTILLO.z) + 15, CASTILLO.z);
+  velo.renderOrder = 3;
+  scene.add(velo);
+
+  // rejilla: es lo que hace que se lea como un campo de fuerza
+  const rejilla = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({
+    map: texturaRejilla(), transparent: true, opacity: .5, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending }));
+  rejilla.position.copy(velo.position);
+  rejilla.scale.setScalar(1.004);
+  rejilla.renderOrder = 4;
+  scene.add(rejilla);
+
+  velo.userData.rejilla = rejilla;
+  campo = velo;
+
+  const aro = new THREE.Mesh(
+    new THREE.RingGeometry(CASTILLO_R - .6, CASTILLO_R + .4, 96),
+    new THREE.MeshBasicMaterial({ color: '#9fe4ff', transparent: true, opacity: .62,
+      side: THREE.DoubleSide, depthWrite: false }));
+  aro.rotation.x = -Math.PI / 2;
+  aro.position.set(CASTILLO.x, h(CASTILLO.x, CASTILLO.z) + .12, CASTILLO.z);
+  aro.renderOrder = 4;
+  scene.add(aro);
+  campoAro = aro;
+}
+
+function puedeEntrarCastillo(){ return G.lvl >= CASTILLO_NIVEL; }
+
+/** el campo empuja hacia fuera mientras no tengas el nivel */
+function campoMuro(){
+  if(puedeEntrarCastillo() || !campo) return;
+  const dx = me.pos.x - CASTILLO.x, dz = me.pos.z - CASTILLO.z;
+  const d = Math.hypot(dx, dz);
+  if(d >= CASTILLO_R || d < .001) return;
+  me.pos.x = CASTILLO.x + dx / d * CASTILLO_R;
+  me.pos.z = CASTILLO.z + dz / d * CASTILLO_R;
+  const ahora = performance.now();
+  if(ahora - campoAviso > 5000){
+    campoAviso = ahora;
+    toast2('el campo de fuerza cede al nivel ' + CASTILLO_NIVEL);
+  }
+}
+
+function campoLatido(t){
+  if(!campo) return;
+  const pulso = .10 + .03 * Math.sin(t * 1.7);
+  campo.material.opacity = pulso;
+  const rej = campo.userData.rejilla;
+  if(rej) rej.material.opacity = .42 + .14 * Math.sin(t * 1.7 + .8);
+  if(campoAro) campoAro.material.opacity = .45 + .18 * Math.sin(t * 1.7);
+  campo.rotation.y = t * .06;
+  if(rej) rej.rotation.y = t * .06;
+}
+
+// --- los guardianes: dan vueltas al castillo por fuera, en un anillo que no pueden
+// cruzar. Nadie entra ahí dentro: ni el jugador (campo) ni ellos (anillo fijo).
+const ANILLO_R = 34, ANILLO_R0 = 29, ANILLO_R1 = 39;
+
+function sectorAnillo(cx, cz, r0, r1, a0, a1, n){
+  const pts = [];
+  for(let i = 0; i <= n; i++){ const a = a0 + (a1 - a0) * i / n; pts.push([cx + Math.cos(a) * r1, cz + Math.sin(a) * r1]); }
+  for(let i = n; i >= 0; i--){ const a = a0 + (a1 - a0) * i / n; pts.push([cx + Math.cos(a) * r0, cz + Math.sin(a) * r0]); }
+  return pts;
+}
+
+const GUARDIANES = [
+  { id:'Z9lddNpM1M', a0: -0.7, a1: 0.7, h: 7.6 },
+  { id:'TX8r9WBXpe', a0:  1.4, a1: 2.8, h: 8.2 },
+  { id:'ceRHrn8HHE', a0:  3.5, a1: 4.9, h: 9.2 },
+];
+
+async function cargarGuardianes(){
+  if(GUARDIANES_OK) return;
+  GUARDIANES_OK = true;
+  for(const g of GUARDIANES){
+    const src = await cargarModelo(g.id);
+    if(!src) continue;
+    const am = (g.a0 + g.a1) / 2;
+    try {
+      crearMob({
+        id: g.id, boss: true, castillo: true, circula: true, sinLinea: true,
+        dir: (Math.random() < .5 ? -1 : 1),
+        x: CASTILLO.x + Math.cos(am) * ANILLO_R,
+        z: CASTILLO.z + Math.sin(am) * ANILLO_R,
+        h: g.h, zone: { id: 0 },
+        poly: sectorAnillo(CASTILLO.x, CASTILLO.z, ANILLO_R0, ANILLO_R1, g.a0, g.a1, 16),
+      });
+      const m = mobs[mobs.length - 1];
+      if(m && m.circula) m.ang = am;
+    } catch(e) { console.warn('guardián', g.id, e); }
+  }
+}
+
+/** dan vueltas alrededor del castillo, siempre en el anillo, nunca hacia dentro */
+function guardianesCirculan(dt){
+  for(let i = 0; i < mobs.length; i++){
+    const m = mobs[i];
+    if(!m.castillo || m.dead || m.aggro) continue;
+    const dir = m.dir || 1;
+    m.ang = (m.ang === undefined ? 0 : m.ang) + dt * .085 * dir;
+    const x = CASTILLO.x + Math.cos(m.ang) * ANILLO_R;
+    const z = CASTILLO.z + Math.sin(m.ang) * ANILLO_R;
+    m.pos.set(x, 0, z);
+    m.g.position.set(x, h(x, z), z);
+    const tx = -Math.sin(m.ang) * dir, tz = Math.cos(m.ang) * dir;
+    m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(tx, tz), dt, 2.2);
+    setAct(m, 'Walk');
+  }
+}
+
+try { window.__dbg.castillo = {
+  get lvl(){ return G.lvl; }, set lvl(v){ G.lvl = v; syncHUD(); },
+  R: CASTILLO_R, nivel: CASTILLO_NIVEL,
+  get campo(){ return campo; },
+  guardianes(){ return mobs.filter(m => m.castillo).length; },
+  cargar: cargarGuardianes,
+  get estado(){ return { ok: GUARDIANES_OK, cargados: Object.keys(MON_GLTF) }; },
+  dentro(){ return Math.hypot(me.pos.x - CASTILLO.x, me.pos.z - CASTILLO.z) < CASTILLO_R; }
+}; } catch(e) {}
+
 // ---------------- vida: se recupera con el tiempo
 let hpAcum = 0;
 function regenVida(dt){
@@ -2671,8 +2831,11 @@ let first = true;
 function frame(){
   const dt = Math.min(clock.getDelta(), .05);
   if(!SHOT && mundoListo) gestionarZonas();
+  if(jugando && mundoListo && !GUARDIANES_OK) cargarGuardianes();
 
   // duelo
+  campoLatido(clock.elapsedTime);
+  campoMuro();
   if(G.inDuel) tickDuelo(dt);
   pvpTick(dt);
   regenVida(dt);   // la vida vuelve sola, más rápido en las posadas
@@ -2704,6 +2867,7 @@ function frame(){
       else if(!muro(nx,pz0)){ me.pos.x = nx; }             // deslizar a lo largo de la pared
       else if(!muro(px0,nz)){ me.pos.z = nz; }
       me.speed = sp;
+      campoMuro();          // el campo de fuerza del castillo
       if(!backpedal){
         const want = Math.atan2(v.x, v.z) + Math.PI;   // mira hacia donde anda
         me.heading = turnTo(me.heading, want, dt, sprint ? 12 : 9);
@@ -2738,6 +2902,7 @@ function frame(){
   }
   // paseo: recorre toda su celda, nunca se queda quieto (pausa máxima 2 s)
   function wanderMob(m, dt){
+    if(m.circula) return;      // los guardianes los mueve guardianesCirculan
     m.wanderT -= dt;
     if(!m.target){
       if(m.wanderT > 0){ setAct(m, 'Idle'); return; }
