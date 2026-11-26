@@ -558,6 +558,8 @@ const DOM_COLOR = {1:'#d0654a',2:'#5b9bd5',3:'#9d7bd8',4:'#5ec27a',5:'#e0b64a'};
 // ---------------- personajes: pack riggeado
 const loader = new GLTFLoader();
 const DATA = 'models/adv_knight.glb';
+// los modelos del pack miran hacia +Z; el mundo razona en -Z
+const GIRO = Math.PI;
 let gltf = null;
 try{
   gltf = await loader.loadAsync(DATA);
@@ -1108,7 +1110,7 @@ const me = spawn('tú', null,
                   (AT.length===2 && isFinite(AT[1])) ? AT[1] : POSADA_INICIAL.z + 8, true);
 ultimaPosada = POSADA_INICIAL;
 me.heading = Math.PI;   // arranca mirando al interior del mundo
-me.root.rotation.y = me.heading;
+me.root.rotation.y = me.heading + GIRO;
 // sin bots de relleno: al mundo solo entran jugadores de verdad
 const bots = [];
 
@@ -1260,7 +1262,7 @@ function entrarAlReino(nombre){
   const destino = (alEntrar && alEntrar.pos) ? alEntrar.pos : [p.x + 4, p.z + 9];
   me.pos.set(destino[0], 0, destino[1]);
   me.heading = (alEntrar && alEntrar.rumbo != null) ? alEntrar.rumbo : Math.PI;
-  me.root.rotation.y = me.heading;
+  me.root.rotation.y = me.heading + GIRO;
   me.root.position.set(me.pos.x, h(me.pos.x, me.pos.z), me.pos.z);
   jugando = true;
   document.getElementById('chargen').classList.add('off');
@@ -1687,9 +1689,9 @@ function frame(){
       setClip(me, sprint && !backpedal ? 'run' : 'walk');
       me.acts.walk.timeScale = backpedal ? -1 : 1;
     } else { me.speed = 0; setClip(me, 'idle'); me.acts.walk.timeScale = 1; }
-    me.root.rotation.y = me.heading;
+    me.root.rotation.y = me.heading + GIRO;
   } else if(SHOT) {
-    me.root.rotation.y = me.heading;
+    me.root.rotation.y = me.heading + GIRO;
     setClip(me, 'walk');
     me.mixer.setTime(SHOT_T);
   }
