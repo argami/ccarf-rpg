@@ -1259,6 +1259,7 @@ function entrarAlReino(nombre){
   const p = INNS[z.id - 1];
   ultimaPosada = p;
   cerrarGate();                 // al mundo no se entra con el portal delante
+  document.body.classList.remove('enchg');   // el HUD vuelve a ser opaco
   const destino = (alEntrar && alEntrar.pos) ? alEntrar.pos : [p.x + 4, p.z + 9];
   me.pos.set(destino[0], 0, destino[1]);
   me.heading = (alEntrar && alEntrar.rumbo != null) ? alEntrar.rumbo : Math.PI;
