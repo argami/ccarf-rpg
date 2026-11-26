@@ -575,6 +575,7 @@ function colisiona(x, z){
     const l = COLS_GRID.get(cKey(a,b)); if(!l) continue;
     for(let k=0;k<l.length;k++){
       const c = l[k], dx = x-c.x, dz = z-c.z, rr = c.r + PR_R;
+      if(corredorPuente(c.x, c.z, 0.8)) continue;
       if(dx*dx + dz*dz < rr*rr) return true;
     }
   }
@@ -1647,7 +1648,7 @@ function entrarAlReino(nombre){
   me.pos.set(destino[0], 0, destino[1]);
   me.heading = (alEntrar && alEntrar.rumbo != null) ? alEntrar.rumbo : Math.PI;
   me.root.rotation.y = me.heading + GIRO;
-  me.root.position.set(me.pos.x, h(me.pos.x, me.pos.z), me.pos.z);
+  me.root.position.set(me.pos.x, suelo(me.pos.x, me.pos.z), me.pos.z);
   jugando = true;
   document.getElementById('chargen').classList.add('off');
 
@@ -3072,7 +3073,7 @@ function frame(){
   reinoTick(dt);                      // otros jugadores: interpolar y avisar
 
   players.forEach(pl=>{
-    pl.root.position.set(pl.pos.x, h(pl.pos.x, pl.pos.z), pl.pos.z);
+    pl.root.position.set(pl.pos.x, suelo(pl.pos.x, pl.pos.z), pl.pos.z);
     pl.mixer.update(dt);
   });
 
@@ -3253,7 +3254,7 @@ function frame(){
   }
 
   // cámara orbital detrás del jugador (yaw libre 360°)
-  const groundY = h(me.pos.x, me.pos.z);
+  const groundY = suelo(me.pos.x, me.pos.z);
   const eRetrato = !jugando;
   const dist = eRetrato ? 3.6 : camDist;
   const target = new THREE.Vector3(me.pos.x, groundY + (eRetrato ? 1.15 : 1.75), me.pos.z);
@@ -3376,38 +3377,119 @@ function construirRio(){
   scene.add(espuma);
 }
 
-let PUENTE = {x:0, z:0};
-function enPuente(x, z){ return Math.hypot(x-PUENTE.x, z-PUENTE.z) < 13; }
+let PUENTE = { x:0, z:0, ang:0, top:-1e9, largo:0, ancho:0 };
+
+function enPuente(x, z){ return Math.hypot(x-PUENTE.x, z-PUENTE.z) < PUENTE.largo / 2 + 2; }
+
+// altura del tablero si el punto cae sobre el puente (si no, -infinito)
+function alturaPuente(x, z){
+  if(PUENTE.top < -1e8) return -Infinity;
+  const wx = x - PUENTE.x, wz = z - PUENTE.z;
+  const c = Math.cos(PUENTE.ang), s = Math.sin(PUENTE.ang);
+  const lz = wx * s + wz * c;          // a lo largo del puente (cruza el río)
+  const lx = wx * c - wz * s;          // a lo ancho
+  if(Math.abs(lx) > PUENTE.ancho / 2 || Math.abs(lz) > PUENTE.largo / 2) return -Infinity;
+  return PUENTE.top;
+}
+
+// suelo de verdad: terreno o tablero, lo que esté más alto
+function suelo(x, z){ return Math.max(h(x, z), alturaPuente(x, z)); }
+
+// corredor del puente (tablero + un margen): ahi no hay arboles ni rocas
+function corredorPuente(x, z, extra){
+  const P = PUENTE;
+  if(!P || P.top < -1e8) return false;
+  const ex = extra || 0;
+  const wx = x - P.x, wz = z - P.z;
+  const c = Math.cos(P.ang), s = Math.sin(P.ang);
+  const lz = wx * s + wz * c, lx = wx * c - wz * s;
+  return Math.abs(lx) <= P.ancho / 2 + 1.8 + ex && Math.abs(lz) <= P.largo / 2 + 2.5 + ex;
+}
+
+// quita del medio los arboles, cactus y rocas que caen sobre el puente;
+// las zonas cargan por detras, asi que se repite cada pocos segundos
+function despejarPuente(){
+  if(!PUENTE || PUENTE.top < -1e8) return;
+  const m4 = new THREE.Matrix4(), vp = new THREE.Vector3(), vq = new THREE.Quaternion(), vs = new THREE.Vector3();
+  scene.traverse(o => {
+    if(!o.isInstancedMesh) return;
+    let tocado = false;
+    for(let i = 0; i < o.count; i++){
+      o.getMatrixAt(i, m4);
+      vp.setFromMatrixPosition(m4);
+      if(!corredorPuente(vp.x, vp.z)) continue;
+      vp.setFromMatrixPosition(m4);
+      m4.decompose(vp, vq, vs);
+      if(vs.x < 0.01) continue;                 // ya estaba quitado
+      m4.compose(vp, vq, new THREE.Vector3(0.0001, 0.0001, 0.0001));
+      o.setMatrixAt(i, m4);
+      tocado = true;
+    }
+    if(tocado) o.instanceMatrix.needsUpdate = true;
+  });
+}
 
 function construirPuente(){
-  // cruce de piedra en el punto medio del río
+  // cruce de piedra en el punto medio del río, perpendicular al cauce y a la
+  // altura de la orilla: antes quedaba 4,5 m sobre el terreno (se pasaba por
+  // debajo) y sin suelo propio (se atravesaba)
   const i = Math.floor(RIVER_PTS.length/2) - 1;
   const a = RIVER_PTS[i], b = RIVER_PTS[i+1];
   const cx = (a[0]+b[0])/2, cz = (a[1]+b[1])/2;
   let dx = b[0]-a[0], dz = b[1]-a[1];
-  const L = Math.hypot(dx,dz) || 1; dx/=L; dz/=L;
-  const ang = Math.atan2(dx, dz);
+  const Lr = Math.hypot(dx,dz) || 1; dx/=Lr; dz/=Lr;
+
+  // el puente cruza: su eje es perpendicular a la corriente
+  const ux = dz, uz = -dx;
+  const ang = Math.atan2(ux, uz);
+
+  const LARGO = 34, ANCHO = 7;
+  // altura de la orilla: lo más alto del terreno a ambos lados del cauce
+  let orilla = -Infinity;
+  for(const lado of [-1, 1]){
+    for(const d of [7, 10, 13, 16]){
+      const y = h(cx + ux * d * lado, cz + uz * d * lado);
+      if(isFinite(y)) orilla = Math.max(orilla, y);
+    }
+  }
+  if(!isFinite(orilla)) orilla = h(cx, cz);
+  const TOP = orilla + 0.12;          // el tablero queda a ras de la orilla
 
   const piedra = new THREE.MeshStandardMaterial({color:'#b9b2a4', roughness:.85, flatShading:true});
   const g = new THREE.Group();
 
-  const tablero = new THREE.Mesh(new THREE.BoxGeometry(9, .7, 24), piedra);
-  tablero.position.y = 1.55; tablero.castShadow = true; tablero.receiveShadow = true; g.add(tablero);
-  [-4.2, 4.2].forEach(dxr=>{
-    const baranda = new THREE.Mesh(new THREE.BoxGeometry(.45, 1.3, 24), piedra);
-    baranda.position.set(dxr, 2.35, 0); baranda.castShadow = true; g.add(baranda);
-  });
-  // dos arcos
-  // dos pilas de piedra en lugar de arcos: el cauce es somero
-  [-6.5, 6.5].forEach(dzr=>{
-    const pila = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.6, 1.6), piedra);
-    pila.position.set(0, .8, dzr); pila.castShadow = true; g.add(pila);
+  const tablero = new THREE.Mesh(new THREE.BoxGeometry(ANCHO, .6, LARGO), piedra);
+  tablero.position.y = -0.3;         // la cara de arriba justo en y=0 del grupo
+  tablero.castShadow = true; tablero.receiveShadow = true; g.add(tablero);
+
+  // pretiles a los dos lados, con hueco en el centro por si hay que empujar
+  [-1, 1].forEach(lado=>{
+    const baranda = new THREE.Mesh(new THREE.BoxGeometry(.42, 1.15, LARGO), piedra);
+    baranda.position.set(lado * (ANCHO/2 - .2), .57, 0);
+    baranda.castShadow = true; g.add(baranda);
   });
 
-  PUENTE = {x:cx, z:cz};
-  g.position.set(cx, h(cx, cz), cz);
-  g.rotation.y = ang + Math.PI/2;   // el tablero cruza el río, no lo sigue
+  // dos pilas de piedra bajo el tablero (mejor que arcos enterrados)
+  [-6.5, 6.5].forEach(dzr=>{
+    const pila = new THREE.Mesh(new THREE.BoxGeometry(ANCHO - 1.6, 3.4, 1.7), piedra);
+    pila.position.set(0, -2.0, dzr); pila.castShadow = true; g.add(pila);
+  });
+
+  // estribos en las dos bocas: tapan el hueco entre el tablero y el suelo
+  [-1, 1].forEach(lado=>{
+    const estribo = new THREE.Mesh(new THREE.BoxGeometry(ANCHO + .8, 4.2, 3.2), piedra);
+    estribo.position.set(0, -2.4, lado * (LARGO/2 - 1.4));
+    estribo.castShadow = true; estribo.receiveShadow = true;
+    g.add(estribo);
+  });
+
+  PUENTE = { x:cx, z:cz, ang, top:TOP, largo:LARGO, ancho:ANCHO };
+  g.position.set(cx, TOP, cz);
+  g.rotation.y = ang;
   scene.add(g);
+
+  despejarPuente();
+  setInterval(despejarPuente, 4000);   // por si la zona carga mas tarde
 }
 
 
@@ -3757,7 +3839,7 @@ try{
 
 syncHUD();
 try {
-  window.__dbg.mundo = { enCiudad, enPoligono, puntoLibre, TERRITORIOS, TOWN_R };
+  window.__dbg.mundo = { suelo, get puente(){ return { ...PUENTE }; }, enCiudad, enPoligono, puntoLibre, TERRITORIOS, TOWN_R };
   window.__dbg.duelo = { get D(){ return D; }, responder, terminar };
 } catch(e) {}
 // ganchos de captura: abren el duelo de inmediato (sin temporizadores)
