@@ -100,6 +100,10 @@
   .gt .sep{margin:18px 0 12px;border-top:1px solid rgba(255,255,255,.10)}
   .gt .mini{color:#6f675a;font-size:10.5px;letter-spacing:.08em;line-height:1.6}
   /* tarjeta con el código recién creado, dentro del juego */
+  #myCode{position:absolute;right:0;top:34px;background:rgba(255,255,255,.06);
+          border:1px solid rgba(255,255,255,.16);color:#cbbfa6;border-radius:8px;
+          padding:5px 9px;font:inherit;font-size:9.5px;letter-spacing:.16em;cursor:pointer}
+  #myCode:hover{color:#f4d489;border-color:rgba(224,182,74,.45)}
   #codeCard{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:65;display:none;
             background:linear-gradient(180deg,rgba(30,25,18,.98),rgba(18,15,11,.98));
             border:1px solid rgba(200,162,74,.45);border-radius:14px;padding:14px 18px;color:#e8ddc6;
@@ -167,6 +171,7 @@
 <div id="load">CARGANDO EL MUNDO…</div>
 <div id="hud">
   <div id="zone">D1 · AGENTES</div>
+  <button id="myCode" title="tu código de jugador">CÓDIGO</button>
   <div class="bars">
     <div class="row"><span class="lbl">VIDA</span><div class="bar hp"><i style="width:100%"></i></div><span class="num">100/100</span></div>
     <div class="row"><span class="lbl">EXP</span><div class="bar xp"><i style="width:0%"></i></div><span class="num">nivel 1 · 0/144</span></div>
@@ -1496,6 +1501,11 @@ function mostrarCodigo(code){
 (function montarCodigo(){
   const copy = document.getElementById('ccCopy');
   const close = document.getElementById('ccClose');
+  const mine = document.getElementById('myCode');
+  if(mine) mine.onclick = ()=>{
+    const s = leerSync();
+    if(s && s.code) mostrarCodigo(s.code);
+  };
   if(copy) copy.onclick = ()=>{
     const t = document.getElementById('ccText').textContent;
     navigator.clipboard && navigator.clipboard.writeText(t);
