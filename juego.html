@@ -2853,7 +2853,11 @@ async function cargarGuardianes(){
         poly: sectorAnillo(CASTILLO.x, CASTILLO.z, ANILLO_R0, ANILLO_R1, g.a0 - .9, g.a0 + .9, 16),
       });
       const m = mobs[mobs.length - 1];
-      if(m && m.circula){ m.ang = am; m.a0 = g.a0; }
+      if(m){
+        // crearMob no copia estas marcas: se ponen aquí o el bicho se pone a pasear
+        m.circula = true; m.castillo = true; m.boss = true;
+        m.ang = am; m.a0 = g.a0;
+      }
     } catch(e) { console.warn('guardián', g.id, e); }
   }
 }
@@ -2871,7 +2875,8 @@ function guardianesCirculan(dt){
     m.pos.set(x, 0, z);
     m.g.position.set(x, h(x, z), z);
     const tx = -Math.sin(m.ang) * dir, tz = Math.cos(m.ang) * dir;
-    m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(tx, tz), dt, 2.2);
+    m.g.rotation.y = Math.atan2(tx, tz);   // de cara a donde camina
+    if(m.mixer) m.mixer.update(dt);   // ellos no pasan por el bucle de criaturas
     if(m.acts && m.acts.Walk && m.curAct !== 'Walk'){
       const prev = m.acts[m.curAct]; if(prev) prev.fadeOut(.2);
       m.acts.Walk.reset().fadeIn(.2).play(); m.curAct = 'Walk';
@@ -2992,8 +2997,7 @@ function frame(){
       m.pos.set(x, 0, z);
       m.g.position.set(x, h(x, z), z);
       m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(-Math.sin(m.ang), Math.cos(m.ang)), dt, 2.2);
-      setAct(m, 'Walk');
-      return;
+      return;                                  // los coloca guardianesCirculan
     }
     m.wanderT -= dt;
     if(!m.target){
