@@ -3810,7 +3810,7 @@ function objetivoEn(cx, cy){
   const grupos = [];
   const cercaDeMi = (x, z) => Math.hypot(x - me.pos.x, z - me.pos.z) <= DIST_SELECCION;
   for(const m of mobs){ if(!m.dead && m.g.visible && cercaDeMi(m.pos.x, m.pos.z)) grupos.push(m.g); }
-  for(const p of players){ if(p.root && cercaDeMi(p.pos.x, p.pos.z)) grupos.push(p.root); }
+  for(const p of players){ if(p.root && !p.isMe && cercaDeMi(p.pos.x, p.pos.z)) grupos.push(p.root); }
   const hits = rayo.intersectObjects(grupos, true);
   for(const h of hits){
     let o = h.object;
@@ -3837,7 +3837,7 @@ function objetivoEn(cx, cy){
     ver(m.pos.x, m.g.position.y + alto, m.pos.z, m, 'mob');
   }
   for(const p of players){
-    if(!p.root || !cercaDeMi(p.pos.x, p.pos.z)) continue;
+    if(!p.root || p.isMe || !cercaDeMi(p.pos.x, p.pos.z)) continue;
     ver(p.pos.x, p.root.position.y + 1.1, p.pos.z, p, 'player');
   }
   return mejor;
