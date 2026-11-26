@@ -3117,18 +3117,21 @@ function vigiaTick(){
     if(d < dmin) dmin = d;
   }
   const t = Math.max(0, Math.min(1, (VIGIA_R - dmin) / (VIGIA_R - AGGRO)));
+  // solo aparece cuando ya está cerca: t=0.45 son ~25 m (33,6 m de radio)
+  const vis = t <= .45 ? 0 : Math.min(1, (t - .45) / .55);
   // el aviso va pegado al torso, no al centro de la pantalla
   const v = new THREE.Vector3(me.pos.x, (me.root ? me.root.position.y : 0) + 0.62, me.pos.z).project(cam);
   vigia.style.left = Math.round((v.x * .5 + .5) * innerWidth) + 'px';
   vigia.style.top  = Math.round((-v.y * .5 + .5) * innerHeight) + 'px';
-  vigia.style.transform = 'translate(-50%,-50%) scale(' + (0.86 + 0.22 * t).toFixed(2) + ')';
+  vigia.style.transform = 'translate(-50%,-50%) scale(' + (0.9 + 0.18 * vis).toFixed(2) + ')';
   // gris -> ambar -> rojo
   const a = [0x6f, 0x6b, 0x64], b = [0xc2, 0x6a, 0x2a], c = [0xe5, 0x34, 0x2a];
-  const u = t < .5 ? t * 2 : 1, w = t < .5 ? 0 : (t - .5) * 2;
+  const u = vis < .5 ? vis * 2 : 1, w = vis < .5 ? 0 : (vis - .5) * 2;
   const p1 = a.map((x, i) => Math.round(x + (b[i] - x) * u));
   const col = p1.map((x, i) => Math.round(x + (c[i] - x) * w));
   vigia.style.color = 'rgb(' + col.join(',') + ')';
-  vigia.style.opacity = t > .02 ? (0.42 + 0.58 * t).toFixed(2) : 0.3;
+  vigia.style.transition = 'opacity .22s linear';
+  vigia.style.opacity = vis <= .01 ? 0 : (0.30 + 0.28 * vis).toFixed(2);
 }
   function setAct(m, name){
     if(m.curAct === name || !m.acts[name]) return;
