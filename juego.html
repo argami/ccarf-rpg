@@ -594,12 +594,17 @@ for(let i=0;i<260;i++){
 }
 rocks.instanceColor.needsUpdate = true;
 
-// montañas
+// montañas: anillo de frontera a 700-780 m (antes 430-520, encima de los dominios)
+// y base sólida: los conos no se atraviesan
 const mtnM = new THREE.MeshStandardMaterial({color:'#8d99a4', roughness:1, flatShading:true});
 for(let i=0;i<16;i++){
-  const a=i/16*Math.PI*2+.2, r=430+(i%3)*45;
-  const m = new THREE.Mesh(new THREE.ConeGeometry(110+(i%4)*30, 95+(i%5)*40, 5), mtnM);
+  const a=i/16*Math.PI*2+.2, r=700+(i%3)*40;
+  const R=110+(i%4)*30, HH=95+(i%5)*40;
+  const m = new THREE.Mesh(new THREE.ConeGeometry(R, HH, 5), mtnM);
   m.position.set(Math.cos(a)*r, 14, Math.sin(a)*r); m.rotation.y=a; scene.add(m);
+  const bx=Math.cos(a)*r, bz=Math.sin(a)*r;
+  addCol(bx, bz, R*0.92);
+  addCol(bx, bz, R*0.62);
 }
 
 // criaturas: guardianes de dominio (se instancian tras cargar el modelo)
@@ -717,18 +722,46 @@ function anilloTerritorio(m){
   return g;
 }
 
+// ---------------- territorios: una celda por criatura ----------------
+// [id, nombre, boss, x, z, polígono] horneados desde tools/make_mapa.py
+const TERRITORIOS = {"1":[["x59pqJscry","Glub",0,0.0,300.0,[[52.7,352.1],[-52.4,353.0],[-52.4,259.1],[52.7,262.7]]],["Z9lddNpM1M","Glub Evolved",1,-104.9,300.0,[[-112.0,412.9],[-112.4,412.4],[-119.5,404.8],[-126.1,396.8],[-132.2,388.3],[-137.7,379.5],[-142.6,370.3],[-146.9,360.8],[-150.6,351.1],[-153.6,341.2],[-155.9,331.0],[-157.6,320.8],[-158.7,310.4],[-159.0,300.0],[-158.7,289.6],[-157.6,279.2],[-155.9,269.0],[-153.6,258.8],[-150.6,248.9],[-146.9,239.2],[-142.6,229.7],[-137.7,220.5],[-132.2,211.7],[-126.1,203.2],[-119.5,195.2],[-112.4,187.6],[-107.6,183.1],[-52.4,259.1],[-52.4,353.0]]],["37wofOCOzG","Frog",0,2.7,221.9,[[-107.6,183.1],[-104.8,180.5],[-96.8,173.9],[-88.3,167.8],[-79.5,162.3],[-70.3,157.4],[-60.8,153.1],[-51.1,149.4],[-41.2,146.4],[-31.0,144.1],[-20.8,142.4],[-10.4,141.3],[-0.0,141.0],[10.4,141.3],[20.8,142.4],[31.0,144.1],[41.2,146.4],[51.1,149.4],[60.8,153.1],[70.3,157.4],[79.5,162.3],[88.3,167.8],[96.8,173.9],[104.8,180.5],[110.9,186.2],[52.7,262.7],[-52.4,259.1]]],["zjr7CmWGER","Hywirl",0,0.9,405.1,[[112.9,412.0],[112.4,412.4],[104.8,419.5],[96.8,426.1],[88.3,432.2],[79.5,437.7],[70.3,442.6],[60.8,446.9],[51.1,450.6],[41.2,453.6],[31.0,455.9],[20.8,457.6],[10.4,458.7],[0.0,459.0],[-10.4,458.7],[-20.8,457.6],[-31.0,455.9],[-41.2,453.6],[-51.1,450.6],[-60.8,446.9],[-70.3,442.6],[-79.5,437.7],[-88.3,432.2],[-96.8,426.1],[-104.8,419.5],[-112.0,412.9],[-52.4,353.0],[52.7,352.1]]],["42djT5zJnx","Armabee",0,105.3,300.0,[[159.0,300.0],[158.7,310.4],[157.6,320.8],[155.9,331.0],[153.6,341.2],[150.6,351.1],[146.9,360.8],[142.6,370.3],[137.7,379.5],[132.2,388.3],[126.1,396.8],[119.5,404.8],[112.9,412.0],[52.7,352.1],[52.7,262.7],[110.9,186.2],[112.4,187.6],[119.5,195.2],[126.1,203.2],[132.2,211.7],[137.7,220.5],[142.6,229.7],[146.9,239.2],[150.6,248.9],[153.6,258.8],[155.9,269.0],[157.6,279.2],[158.7,289.6]]]],"2":[["IGn9lhdama","Cactoro",0,285.2,93.3,[[333.2,140.5],[254.7,153.2],[218.7,83.0],[273.9,26.9],[344.7,62.0]]],["t91lDHaqRW","Tribal",0,188.2,143.0,[[213.6,235.0],[205.5,230.7],[196.7,225.2],[188.2,219.1],[180.2,212.5],[172.6,205.4],[165.5,197.8],[158.9,189.8],[152.8,181.3],[147.3,172.5],[142.4,163.3],[138.1,153.8],[134.4,144.1],[131.4,134.2],[129.1,124.0],[127.4,113.8],[126.3,103.4],[126.0,93.0],[126.3,82.6],[127.4,72.2],[127.9,69.3],[218.7,83.0],[254.7,153.2]]],["71gomWolax","Goleling",0,333.6,-4.4,[[344.7,62.0],[273.9,26.9],[258.8,-63.7],[264.2,-64.6],[274.6,-65.7],[285.0,-66.0],[295.4,-65.7],[305.8,-64.6],[316.0,-62.9],[326.2,-60.6],[336.1,-57.6],[345.8,-53.9],[355.3,-49.6],[364.5,-44.7],[373.3,-39.2],[381.8,-33.1],[389.8,-26.5],[397.4,-19.4],[404.5,-11.8],[411.1,-3.8],[417.2,4.7],[422.7,13.5],[426.0,19.6]]],["TX8r9WBXpe","Ghost Skull",1,302.6,200.4,[[398.2,204.6],[397.4,205.4],[389.8,212.5],[381.8,219.1],[373.3,225.2],[364.5,230.7],[355.3,235.6],[345.8,239.9],[336.1,243.6],[326.2,246.6],[316.0,248.9],[305.8,250.6],[295.4,251.7],[285.0,252.0],[274.6,251.7],[264.2,250.6],[254.0,248.9],[243.8,246.6],[233.9,243.6],[224.2,239.9],[214.7,235.6],[213.6,235.0],[254.7,153.2],[333.2,140.5]]],["RRliSQBP7r","Alien",0,392.8,109.1,[[444.0,93.0],[443.7,103.4],[442.6,113.8],[440.9,124.0],[438.6,134.2],[435.6,144.1],[431.9,153.8],[427.6,163.3],[422.7,172.5],[417.2,181.3],[411.1,189.8],[404.5,197.8],[398.2,204.6],[333.2,140.5],[344.7,62.0],[426.0,19.6],[427.6,22.7],[431.9,32.2],[435.6,41.9],[438.6,51.8],[440.9,62.0],[442.6,72.2],[443.7,82.6]]],["Iip30bDHmu","Ghost",0,207.3,16.7,[[127.9,69.3],[129.1,62.0],[131.4,51.8],[134.4,41.9],[138.1,32.2],[142.4,22.7],[147.3,13.5],[152.8,4.7],[158.9,-3.8],[165.5,-11.8],[172.6,-19.4],[180.2,-26.5],[188.2,-33.1],[196.7,-39.2],[205.5,-44.7],[214.7,-49.6],[224.2,-53.9],[233.9,-57.6],[243.8,-60.6],[254.0,-62.9],[258.8,-63.7],[273.9,26.9],[218.7,83.0]]]],"3":[["AQ8zbFoDln","Alpaking",0,-285.0,93.0,[[-232.3,145.1],[-337.4,146.0],[-337.4,40.0],[-232.3,40.9]]],["UdJudob66v","Alpaking Evolved",0,-389.9,93.0,[[-397.0,205.9],[-397.4,205.4],[-404.5,197.8],[-411.1,189.8],[-417.2,181.3],[-422.7,172.5],[-427.6,163.3],[-431.9,153.8],[-435.6,144.1],[-438.6,134.2],[-440.9,124.0],[-442.6,113.8],[-443.7,103.4],[-444.0,93.0],[-443.7,82.6],[-442.6,72.2],[-440.9,62.0],[-438.6,51.8],[-435.6,41.9],[-431.9,32.2],[-427.6,22.7],[-422.7,13.5],[-417.2,4.7],[-411.1,-3.8],[-404.5,-11.8],[-397.4,-19.4],[-397.0,-19.9],[-337.4,40.0],[-337.4,146.0]]],["ceRHrn8HHE","Yeti",1,-284.1,-12.1,[[-397.0,-19.9],[-389.8,-26.5],[-381.8,-33.1],[-373.3,-39.2],[-364.5,-44.7],[-355.3,-49.6],[-345.8,-53.9],[-336.1,-57.6],[-326.2,-60.6],[-316.0,-62.9],[-305.8,-64.6],[-295.4,-65.7],[-285.0,-66.0],[-274.6,-65.7],[-264.2,-64.6],[-254.0,-62.9],[-243.8,-60.6],[-233.9,-57.6],[-224.2,-53.9],[-214.7,-49.6],[-205.5,-44.7],[-196.7,-39.2],[-188.2,-33.1],[-180.2,-26.5],[-172.6,-19.4],[-172.1,-19.0],[-232.3,40.9],[-337.4,40.0]]],["iHEuXiH6Aj","Goleling Evolved",0,-284.1,198.1,[[-172.1,205.0],[-172.6,205.4],[-180.2,212.5],[-188.2,219.1],[-196.7,225.2],[-205.5,230.7],[-214.7,235.6],[-224.2,239.9],[-233.9,243.6],[-243.8,246.6],[-254.0,248.9],[-264.2,250.6],[-274.6,251.7],[-285.0,252.0],[-295.4,251.7],[-305.8,250.6],[-316.0,248.9],[-326.2,246.6],[-336.1,243.6],[-345.8,239.9],[-355.3,235.6],[-364.5,230.7],[-373.3,225.2],[-381.8,219.1],[-389.8,212.5],[-397.0,205.9],[-337.4,146.0],[-232.3,145.1]]],["S7jYW6Amye","Blue Demon",0,-179.7,93.0,[[-126.0,93.0],[-126.3,103.4],[-127.4,113.8],[-129.1,124.0],[-131.4,134.2],[-134.4,144.1],[-138.1,153.8],[-142.4,163.3],[-147.3,172.5],[-152.8,181.3],[-158.9,189.8],[-165.5,197.8],[-172.1,205.0],[-232.3,145.1],[-232.3,40.9],[-172.1,-19.0],[-165.5,-11.8],[-158.9,-3.8],[-152.8,4.7],[-147.3,13.5],[-142.4,22.7],[-138.1,32.2],[-134.4,41.9],[-131.4,51.8],[-129.1,62.0],[-127.4,72.2],[-126.3,82.6]]]],"4":[["grnFTziU8u","Mushroom King",1,177.2,-242.7,[[225.2,-195.5],[146.7,-182.8],[110.7,-253.0],[165.9,-309.1],[236.7,-274.0]]],["GcttdvsqsQ","Armabee Evolved",0,80.2,-193.0,[[105.6,-101.0],[97.5,-105.3],[88.7,-110.8],[80.2,-116.9],[72.2,-123.5],[64.6,-130.6],[57.5,-138.2],[50.9,-146.2],[44.8,-154.7],[39.3,-163.5],[34.4,-172.7],[30.1,-182.2],[26.4,-191.9],[23.4,-201.8],[21.1,-212.0],[19.4,-222.2],[18.3,-232.6],[18.0,-243.0],[18.3,-253.4],[19.4,-263.8],[19.9,-266.7],[110.7,-253.0],[146.7,-182.8]]],["j4rVPvxyLg","Monkroose",0,225.6,-340.4,[[236.7,-274.0],[165.9,-309.1],[150.8,-399.7],[156.2,-400.6],[166.6,-401.7],[177.0,-402.0],[187.4,-401.7],[197.8,-400.6],[208.0,-398.9],[218.2,-396.6],[228.1,-393.6],[237.8,-389.9],[247.3,-385.6],[256.5,-380.7],[265.3,-375.2],[273.8,-369.1],[281.8,-362.5],[289.4,-355.4],[296.5,-347.8],[303.1,-339.8],[309.2,-331.3],[314.7,-322.5],[318.0,-316.4]]],["54QyRcsogk","Squidle",0,194.6,-135.6,[[290.2,-131.4],[289.4,-130.6],[281.8,-123.5],[273.8,-116.9],[265.3,-110.8],[256.5,-105.3],[247.3,-100.4],[237.8,-96.1],[228.1,-92.4],[218.2,-89.4],[208.0,-87.1],[197.8,-85.4],[187.4,-84.3],[177.0,-84.0],[166.6,-84.3],[156.2,-85.4],[146.0,-87.1],[135.8,-89.4],[125.9,-92.4],[116.2,-96.1],[106.7,-100.4],[105.6,-101.0],[146.7,-182.8],[225.2,-195.5]]],["ypEYhCImAB","Fish",0,284.8,-226.9,[[336.0,-243.0],[335.7,-232.6],[334.6,-222.2],[332.9,-212.0],[330.6,-201.8],[327.6,-191.9],[323.9,-182.2],[319.6,-172.7],[314.7,-163.5],[309.2,-154.7],[303.1,-146.2],[296.5,-138.2],[290.2,-131.4],[225.2,-195.5],[236.7,-274.0],[318.0,-316.4],[319.6,-313.3],[323.9,-303.8],[327.6,-294.1],[330.6,-284.2],[332.9,-274.0],[334.6,-263.8],[335.7,-253.4]]],["LnfIziKv4o","Demon",0,99.3,-319.3,[[19.9,-266.7],[21.1,-274.0],[23.4,-284.2],[26.4,-294.1],[30.1,-303.8],[34.4,-313.3],[39.3,-322.5],[44.8,-331.3],[50.9,-339.8],[57.5,-347.8],[64.6,-355.4],[72.2,-362.5],[80.2,-369.1],[88.7,-375.2],[97.5,-380.7],[106.7,-385.6],[116.2,-389.9],[125.9,-393.6],[135.8,-396.6],[146.0,-398.9],[150.8,-399.7],[165.9,-309.1],[110.7,-253.0]]]],"5":[["5vO2YJsPEf","Orc",0,-177.6,-262.0,[[-201.7,-194.0],[-244.0,-253.1],[-190.7,-324.8],[-113.1,-276.2],[-136.7,-203.3]]],["wuerCFCWNR","Dino",0,-273.8,-193.0,[[-248.4,-101.0],[-256.5,-105.3],[-265.3,-110.8],[-273.8,-116.9],[-281.8,-123.5],[-289.4,-130.6],[-296.5,-138.2],[-303.1,-146.2],[-309.2,-154.7],[-314.7,-163.5],[-319.6,-172.7],[-323.9,-182.2],[-327.6,-191.9],[-330.6,-201.8],[-332.9,-212.0],[-334.6,-222.2],[-335.7,-232.6],[-336.0,-243.0],[-335.7,-253.4],[-334.6,-263.8],[-334.1,-266.7],[-244.0,-253.1],[-201.7,-194.0]]],["3rUm1cN3yp","Dragon",0,-128.4,-340.4,[[-113.1,-276.2],[-190.7,-324.8],[-203.2,-399.7],[-197.8,-400.6],[-187.4,-401.7],[-177.0,-402.0],[-166.6,-401.7],[-156.2,-400.6],[-146.0,-398.9],[-135.8,-396.6],[-125.9,-393.6],[-116.2,-389.9],[-106.7,-385.6],[-97.5,-380.7],[-88.7,-375.2],[-80.2,-369.1],[-72.2,-362.5],[-64.6,-355.4],[-57.5,-347.8],[-50.9,-339.8],[-44.8,-331.3],[-39.3,-322.5],[-36.0,-316.4]]],["LlwD0QNUPj","Dragon Evolved",1,-159.4,-135.6,[[-63.8,-131.4],[-64.6,-130.6],[-72.2,-123.5],[-80.2,-116.9],[-88.7,-110.8],[-97.5,-105.3],[-106.7,-100.4],[-116.2,-96.1],[-125.9,-92.4],[-135.8,-89.4],[-146.0,-87.1],[-156.2,-85.4],[-166.6,-84.3],[-177.0,-84.0],[-187.4,-84.3],[-197.8,-85.4],[-208.0,-87.1],[-218.2,-89.4],[-228.1,-92.4],[-237.8,-96.1],[-247.3,-100.4],[-248.4,-101.0],[-201.7,-194.0],[-136.7,-203.3]]],["xGYmeDpfTu","Ninja",0,-69.2,-226.9,[[-18.0,-243.0],[-18.3,-232.6],[-19.4,-222.2],[-21.1,-212.0],[-23.4,-201.8],[-26.4,-191.9],[-30.1,-182.2],[-34.4,-172.7],[-39.3,-163.5],[-44.8,-154.7],[-50.9,-146.2],[-57.5,-138.2],[-63.8,-131.4],[-136.7,-203.3],[-113.1,-276.2],[-36.0,-316.4],[-34.4,-313.3],[-30.1,-303.8],[-26.4,-294.1],[-23.4,-284.2],[-21.1,-274.0],[-19.4,-263.8],[-18.3,-253.4]]],["Mo2ky6vkf8","Demon",0,-254.7,-319.3,[[-334.1,-266.7],[-332.9,-274.0],[-330.6,-284.2],[-327.6,-294.1],[-323.9,-303.8],[-319.6,-313.3],[-314.7,-322.5],[-309.2,-331.3],[-303.1,-339.8],[-296.5,-347.8],[-289.4,-355.4],[-281.8,-362.5],[-273.8,-369.1],[-265.3,-375.2],[-256.5,-380.7],[-247.3,-385.6],[-237.8,-389.9],[-228.1,-393.6],[-218.2,-396.6],[-208.0,-398.9],[-203.2,-399.7],[-190.7,-324.8],[-244.0,-253.1]]]]};
+const TOWN_R = 30;                       // radio de la ciudad-refugio de cada posada
+const enPoligono = (x, z, poly) => {
+  let c = false;
+  for(let i=0, n=poly.length; i<n; i++){
+    const x1=poly[i][0], z1=poly[i][1], x2=poly[(i+1)%n][0], z2=poly[(i+1)%n][1];
+    if(((z1>z)!==(z2>z)) && (x < (x2-x1)*(z-z1)/(z2-z1)+x1)) c = !c;
+  }
+  return c;
+};
+const enCiudad = (x, z) => INNS.some(p => Math.hypot(p.x-x, p.z-z) < TOWN_R);
+function puntoLibre(m){
+  if(!m.poly) return null;
+  let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+  for(const q of m.poly){ x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); z0=Math.min(z0,q[1]); z1=Math.max(z1,q[1]); }
+  for(let i=0;i<30;i++){
+    const x = x0 + Math.random()*(x1-x0), z = z0 + Math.random()*(z1-z0);
+    if(!enPoligono(x,z,m.poly)) continue;
+    if(enCiudad(x,z)) continue;
+    return {x, z};
+  }
+  return null;
+}
+function lineaTerritorio(m){
+  if(!m.poly || m.poly.length < 3) return null;
+  const pts = m.poly.map(q => new THREE.Vector3(q[0], h(q[0], q[1]) + .38, q[1]));
+  pts.push(pts[0].clone());
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:'#ffe9b0', transparent:true, opacity:.5}));
+  line.frustumCulled = false;
+  scene.add(line);
+  return line;
+}
+
 function planZona(z){
-  const defs = [];
-  z.species.forEach((id,i)=>{
-    const boss = id === z.boss;
-    const a = i*2.6 + z.id*0.7 + 0.4;   // sin dos criaturas en el mismo punto
-    const rr = z.r*(boss ? .18 : (.34 + (i%3)*.2));
-    defs.push({zone:z, id, boss,
-      x: z.cx + Math.cos(a)*rr,
-      z: z.cz + Math.sin(a)*rr,
-      h: boss ? 4.6 : 2.1 + (i%3)*0.45});
-  });
-  return defs;
+  const t = TERRITORIOS[z.id] || [];
+  return t.map(q => ({ zone:z, id:q[0], boss:!!q[2], x:q[3], z:q[4],
+                       h: q[2] ? 4.6 : 2.1 + (z.id % 3) * 0.45, poly:q[5] }));
 }
 
 function crearMob(d){
@@ -773,14 +806,14 @@ function crearMob(d){
 
   const mob = {
     g:root, ring, mixer, acts, el, boss:!!d.boss, zone:d.zone,
-    name: MON_NAME[d.id], dom:d.zone.id, beaten:false,
+    id: d.id, name: MON_NAME[d.id], dom:d.zone.id, beaten:false,
     talla:d.h, pos:new THREE.Vector3(d.x,0,d.z), home:{x:d.x,z:d.z},
-    terr:{x:d.x, z:d.z, r: 13 + (d.zone.id % 3)*3},
+    terr:{x:d.x, z:d.z, r: 14}, poly: d.poly || null,
     wanderT: 1 + Math.random()*3, target:null,
     curAct:'Idle', aggro:false, cool:0, dead:false,
     die(){
       if(this.dead) return;
-      this.dead = true; this.aggro = false;
+      this.dead = true; this.aggro = false; this.target = null;
       const a = this.acts.Death;
       if(this.acts.Idle) this.acts.Idle.stop();
       if(this.acts.Walk) this.acts.Walk.stop();
@@ -790,17 +823,39 @@ function crearMob(d){
         self.g.visible = false;
         if(self.ring) self.ring.visible = false;
         if(self.el) self.el.style.display = 'none';
+        if(self.efimero && self.terrLine){ scene.remove(self.terrLine); self.terrLine = null; }
       }, 1400);
+      // 90 s para volver, y siempre lejos de donde está el jugador
       setTimeout(()=>{
-        self.dead = false; self.g.visible = true;
+        if(self.efimero){                      // los de encuentro no vuelven
+          scene.remove(self.g);
+          const ix = mobs.indexOf(self);
+          if(ix >= 0) mobs.splice(ix, 1);
+          const iz = ZONE_MOBS[self.zone.id] || [];
+          const k2 = iz.indexOf(self); if(k2 >= 0) iz.splice(k2, 1);
+          if(self.el) self.el.remove();
+          return;
+        }
+        let spot = null;
+        for(let i=0;i<40 && !spot;i++){
+          const c = puntoLibre(self);
+          if(!c) break;
+          if(Math.hypot(c.x - me.pos.x, c.z - me.pos.z) > 20) spot = c;
+        }
+        if(spot){
+          self.pos.set(spot.x, 0, spot.z);
+          self.g.position.set(spot.x, h(spot.x, spot.z), spot.z);
+          self.home = {x: spot.x, z: spot.z};
+        }
+        self.dead = false; self.g.visible = true; self.beaten = false;
         if(self.ring) self.ring.visible = true;
         if(self.el) self.el.style.display = 'block';
         if(self.acts.Idle) self.acts.Idle.reset().play();
-        self.curAct = 'Idle'; self.cool = 8;
-      }, 180000);
+        self.curAct = 'Idle'; self.cool = 6; self.target = null;
+      }, 90000);
     }
   };
-  if(!mob.boss) mob.terrLine = anilloTerritorio(mob);
+  if(!d.sinLinea) mob.terrLine = lineaTerritorio(mob);
   (ZONE_MOBS[d.zone.id] = ZONE_MOBS[d.zone.id] || []).push(mob);
   mobs.push(mob);
 }
@@ -1365,7 +1420,7 @@ function entrarAlReino(nombre){
   else toast2('despiertas en la ' + p.nombre + ', ' + me.nombre);
   if (!leerSync() || !leerSync().code) asegurarCodigo();
   guardarPartida();
-  reinoZona = -1;                     // fuerza reconexión de presencia al entrar
+  miIdReino = null;                   // al entrar, presencia de cero
   alEntrar = null;
 }
 
@@ -1528,7 +1583,7 @@ addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidd
 // Una sala por dominio en el Worker. Aquí solo se dibuja lo que llega.
 const remotos = new Map();       // id efímero -> jugador remoto
 const cachePj = new Map();       // personaje -> promesa del glb (se carga una vez)
-let wsReino = null, wsEspera = 0, reinoZona = -1, reinoProx = 0;
+let wsReino = null, wsEspera = 0, reinoProx = 0, miIdReino = null;
 
 function escalaAltura(a){ return a === 'bajo' ? .9 : a === 'alto' ? 1.1 : 1; }
 function modeloDe(id){
@@ -1621,20 +1676,25 @@ function reinoConectar(){
   const s = leerSync();
   if(!s || !s.code) return;                    // sin código no hay a quién presentar
   const zn = zoneAt(me.pos.x, me.pos.z);
-  const zona = zn ? zn.id : 0;
   const q = new URLSearchParams({
+    c: s.code,                                 // el servidor lo convierte en id estable
+    z: zn ? zn.id : 0,
     n: me.nombre || 'errante', p: personajeElegido, a: alturaElegida,
     px: Math.round(me.pos.x), pz: Math.round(me.pos.z),
     r: me.heading, hp: Math.round(G.hp), lvl: G.lvl,
   });
-  const url = RPGBASE.replace(/^http/, 'ws') + '/reino/' + zona + '?' + q.toString();
+  const url = RPGBASE.replace(/^http/, 'ws') + '/reino/0?' + q.toString();
   let ws;
   try{ ws = new WebSocket(url); }catch(e){ return; }
   wsReino = ws;
-  reinoZona = zona;
   ws.onopen = ()=>{ wsEspera = 0; };
   ws.onmessage = ev=>{
     let d; try{ d = JSON.parse(ev.data); }catch(e){ return; }
+    if(d.t === 'yo'){ miIdReino = d.id; return; }
+    if(d.id && d.id === miIdReino){          // soy yo: nunca me dibujo a mí mismo
+      if(d.t === 'bye') quitarRemoto(d.id);
+      return;
+    }
     if(d.t === 'join') crearRemoto(d);
     else if(d.t === 'pos'){
       const pl = remotos.get(d.id);
@@ -1658,9 +1718,7 @@ function reinoConectar(){
 // se llama en cada frame, antes de mover a los jugadores
 function reinoTick(dt){
   if(!jugando) return;
-  const zn = zoneAt(me.pos.x, me.pos.z);
-  const zona = zn ? zn.id : 0;
-  if(zona !== reinoZona) reinoConectar();       // cambió de dominio: otra sala
+  if(!wsReino && !wsEspera && performance.now() > reinoProx) reinoConectar();
 
   const ahora = performance.now();
   if(wsReino && wsReino.readyState === 1 && ahora - reinoProx > 200){
@@ -1688,7 +1746,7 @@ addEventListener('pagehide', ()=> reinoCerrar());
 if(typeof window !== 'undefined'){
   (window.__dbg = window.__dbg || {}).reino = {
     remotos, get ws(){ return wsReino; }, conectar: reinoConectar, cerrar: reinoCerrar,
-    get zona(){ return reinoZona; },
+    get yo(){ return miIdReino; },
   };
 }
 
@@ -1960,7 +2018,7 @@ function frame(){
   });
 
   // criaturas: flotan y giran
-  const AGGRO = 12, LEASH = 24, ALCANCE = 3.1;
+  const AGGRO = 14, AGGRO_JEFE = 20, ALCANCE = 3.1, PIERDE = 40;
   function setAct(m, name){
     if(m.curAct === name || !m.acts[name]) return;
     const prev = m.acts[m.curAct];
@@ -1968,30 +2026,77 @@ function frame(){
     m.acts[name].reset().fadeIn(.2).play();
     m.curAct = name;
   }
-  // paseo de las criaturas de la zona: vagan dentro de su bioma
+  // paseo: recorre toda su celda, nunca se queda quieto (pausa máxima 2 s)
   function wanderMob(m, dt){
     m.wanderT -= dt;
-    if(m.wanderT <= 0){
-      m.wanderT = 2.5 + Math.random()*5;
-      if(Math.random() < .3){ m.target = null; }
-      else {
-        const a = Math.random()*6.283, rr = Math.sqrt(Math.random())*m.terr.r*.76;
-        m.target = {x: m.terr.x + Math.cos(a)*rr, z: m.terr.z + Math.sin(a)*rr};
-      }
+    if(!m.target){
+      if(m.wanderT > 0){ setAct(m, 'Idle'); return; }
+      const p = puntoLibre(m);
+      if(!p){ m.wanderT = 1; setAct(m, 'Idle'); return; }
+      m.target = p; setAct(m, 'Walk');
     }
-    if(!m.target){ setAct(m, 'Idle'); return; }
     const dx = m.target.x - m.pos.x, dz = m.target.z - m.pos.z;
     const d = Math.hypot(dx, dz);
-    if(d < .7){ m.target = null; setAct(m, 'Idle'); return; }
-    const sp = .95 + (m.dom % 3)*.12;
+    if(d < .8){ m.target = null; m.wanderT = .3 + Math.random()*1.7; setAct(m, 'Idle'); return; }
+    const sp = 1.15 + (m.dom % 3)*.15;
     m.pos.x += dx/d*sp*dt; m.pos.z += dz/d*sp*dt;
     m.g.position.set(m.pos.x, h(m.pos.x, m.pos.z), m.pos.z);
     m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz), dt, 3.4);
-    // si el paseo lo ha sacado del círculo, vuelve a casa
-    const ox = m.pos.x - m.terr.x, oz = m.pos.z - m.terr.z;
-    if(Math.hypot(ox, oz) > m.terr.r) m.target = {x: m.terr.x, z: m.terr.z};
+    if(m.poly && !enPoligono(m.pos.x, m.pos.z, m.poly)){ m.target = null; m.wanderT = .2; }
     setAct(m, 'Walk');
   }
+  // encuentros: si no hay otro jugador cerca, el mundo te busca pelea
+  // el estado vive fuera del fotograma: un let aquí se reiniciaría 60 veces por segundo
+  const E = (window.__enc = window.__enc || {
+    dist: 0, meta: 120 + Math.random()*80, cool: 10, x: me.pos.x, z: me.pos.z });
+  E.x = me.pos.x; E.z = me.pos.z;
+  function encuentrosTick(dt){
+    if(!jugando || G.inDuel || G.dead || tiendaAbierta) return;
+    E.dist += Math.hypot(me.pos.x - E.x, me.pos.z - E.z);
+    E.x = me.pos.x; E.z = me.pos.z;
+    if(E.cool > 0) E.cool -= dt;
+    if(E.dist < E.meta || E.cool > 0) return;
+    E.dist = 0; E.meta = 120 + Math.random()*80; E.cool = 1.5;
+    if(enCiudad(me.pos.x, me.pos.z)) return;
+    try {
+      for(const r of remotos.values()){
+        if(Math.hypot(r.pos.x - me.pos.x, r.pos.z - me.pos.z) < 40) return;
+      }
+    } catch(e) {}
+    if(Math.random() > .45) return;
+    aparecerEncuentro();
+  }
+  function aparecerEncuentro(){
+    const zona = zoneAt(me.pos.x, me.pos.z);
+    if(!zona) return;
+    // solo especies con el modelo ya cargado, o crearMob no puede instanciarla
+    const listo = m => !m.dead && m.poly && MON_GLTF[m.id];
+    const enCelda = mobs.filter(m => listo(m) && enPoligono(me.pos.x, me.pos.z, m.poly));
+    const base = enCelda.length ? enCelda[Math.floor(Math.random()*enCelda.length)]
+               : mobs.filter(m => listo(m) && m.dom === zona.id)[0];
+    if(!base) return;
+    let spot = null, cercano = null;
+    for(let i=0;i<80 && !spot;i++){
+      const p = puntoLibre(base);
+      if(!p) break;
+      const dd = Math.hypot(p.x - me.pos.x, p.z - me.pos.z);
+      if(dd > 18 && dd < 26) spot = p;
+      else if(!cercano && dd > 12 && dd < 34) cercano = p;
+    }
+    if(!spot) spot = cercano;                 // sin sitio ideal, el primero razonable
+    if(!spot) return;
+    const antes = mobs.length;
+    crearMob({zone: base.zone, id: base.id, boss: false, x: spot.x, z: spot.z,
+              h: base.talla, poly: base.poly, sinLinea: true});
+    if(mobs.length === antes) return;          // no se pudo crear: mejor nada que un fantasma
+    const nuevo = mobs[mobs.length-1];
+    nuevo.efimero = true; nuevo.aggro = true; nuevo.cool = 0;
+    toast2('algo se mueve entre la maleza');
+  }
+  try { window.__dbg.enc = {
+    get dist(){ return E.dist; }, get meta(){ return E.meta; }, get cool(){ return E.cool; },
+    forzar(){ E.dist = 1e9; E.cool = 0; }, spawn(){ aparecerEncuentro(); }
+  }; } catch(e) {}
   if (jugando) mobs.forEach(m=>{
     m.mixer.update(dt);
     if(m.ring) m.ring.rotation.z += dt*1.1;
@@ -2002,31 +2107,35 @@ function frame(){
     const dist = Math.hypot(dx, dz);
 
     if(m.dead || G.inDuel || G.dead){ m.aggro = false; return; }
-    if(!m.boss){ wanderMob(m, dt); return; }
 
-    // se enfada si te acercas, y ataca al alcanzarte
-    if(!m.aggro && dist < AGGRO && m.cool <= 0) m.aggro = true;
-    if(m.aggro && dist > LEASH){ m.aggro = false; m.cool = 4; }
+    // la ciudad es refugio: ni aggro ni persecución
+    if(enCiudad(me.pos.x, me.pos.z)){ m.aggro = false; wanderMob(m, dt); return; }
 
-    if(m.aggro){
-      const lejos = Math.hypot(m.pos.x - m.terr.x, m.pos.z - m.terr.z) > m.terr.r;
-      if(lejos){ m.aggro = false; m.cool = 6; m.target = null; }
-      else if(dist > ALCANCE){
-        const vx = dx/dist, vz = dz/dist;
-        m.pos.x += vx * 2.8 * dt;  m.pos.z += vz * 2.8 * dt;
-        m.g.position.set(m.pos.x, h(m.pos.x, m.pos.z), m.pos.z);
-        m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(vx, vz) + Math.PI, dt, 6);
-        if(m.acts.Walk) setAct(m, 'Walk');
-      } else {
-        m.aggro = false; m.cool = 14;
-        toast2(m.name + ' te ha visto');
-        empezarDuelo('mob', m);
+    const radio = m.boss ? AGGRO_JEFE : AGGRO;
+    if(!m.aggro && dist < radio && m.cool <= 0) m.aggro = true;
+    if(m.aggro && dist > radio + PIERDE){ m.aggro = false; m.cool = 5; m.target = null; }
+
+    if(!m.aggro){ wanderMob(m, dt); return; }
+
+    if(dist > ALCANCE){
+      const vx = dx/dist, vz = dz/dist, paso = (m.boss ? 3.1 : 2.4) * dt;
+      const nx = m.pos.x + vx*paso, nz = m.pos.z + vz*paso;
+      if(m.poly && !enPoligono(nx, nz, m.poly)){
+        // no sale de su territorio: se rinde y vuelve a pasear
+        m.aggro = false; m.cool = 6; m.target = null;
+        return;
       }
-    } else if(dist < 6){
-      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz) + Math.PI, dt, 2.2);
-      if(m.acts.Idle) setAct(m, 'Idle');
+      m.pos.x = nx; m.pos.z = nz;
+      m.g.position.set(m.pos.x, h(m.pos.x, m.pos.z), m.pos.z);
+      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(vx, vz) + Math.PI, dt, 6);
+      setAct(m, 'Walk');
+    } else {
+      m.aggro = false; m.cool = 16;
+      toast2(m.name + ' te ha visto');
+      empezarDuelo('mob', m);
     }
   });
+  encuentrosTick(dt);
 
   // cercanía a criatura
   near = null;
@@ -2429,7 +2538,11 @@ function terminar(res){
   };
   if(res === 'gana'){
     if(d.kind === 'pvp'){ darExp(60); G.coins += 5; }
-    else { if(!d.foe.beaten){ d.foe.beaten = true; darExp(12); } G.coins += 2; }
+    else {
+      if(d.foe && !d.foe.beaten){ d.foe.beaten = true; darExp(12); }
+      G.coins += 2;
+      if(d.foe && d.foe.die) d.foe.die();       // la criatura muere y tarda en volver
+    }
     G.hp = Math.min(G.hpMax, G.hp + 15);
     syncHUD();
   }
@@ -2464,6 +2577,10 @@ function morir(){
 }
 
 syncHUD();
+try {
+  window.__dbg.mundo = { enCiudad, enPoligono, puntoLibre, TERRITORIOS, TOWN_R };
+  window.__dbg.duelo = { get D(){ return D; }, responder, terminar };
+} catch(e) {}
 // ganchos de captura: abren el duelo de inmediato (sin temporizadores)
 if(QS.get('near') === '1'){
   const t = MOB_DEF[0];
