@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>El Reino de las Cartas — CCAR-F en un mundo jugable</title>
+<meta name="description" content="Recorre cinco dominios, responde preguntas reales del examen CCAR-F y guarda tu partida con un código de jugador.">
+<meta property="og:title" content="El Reino de las Cartas">
+<meta property="og:description" content="Estudia el CCAR-F jugando: cinco dominios, criaturas guardianas y un código para volver donde lo dejaste.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0d1014">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚔️</text></svg>">
+<style>
+  :root{ --gold:#e0b64a; --ink:#0d1014; --paper:#e8ddc6; --mute:#8d8272; --line:rgba(200,162,74,.28) }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--paper);
+            font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+
+  header.top{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+  .brand{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.26em;font-size:12px;color:var(--gold)}
+  .top a{font-size:12px;letter-spacing:.14em;color:var(--mute);text-decoration:none}
+  .top a:hover{color:var(--paper)}
+
+  .hero{position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--line);
+        background:#11151a center 32%/cover no-repeat;min-height:min(74vh,620px);display:flex;align-items:flex-end}
+  .hero .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,12,16,.20) 0%,rgba(9,12,16,.72) 42%,rgba(9,12,16,.96) 100%)}
+  .hero .copy{position:relative;padding:38px 34px 34px;max-width:660px}
+  h1{max-width:16ch;margin:0 0 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+     font-size:clamp(26px,4.1vw,46px);line-height:1.06;letter-spacing:.02em;color:#f4e7c8}
+  h1 em{font-style:normal;color:var(--gold)}
+  .lead{margin:0 0 24px;font-size:clamp(14px,1.6vw,17px);line-height:1.6;color:#cbbfa6;max-width:52ch}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .btn{display:inline-block;text-decoration:none;padding:15px 30px;border-radius:12px;font-weight:700;
+       letter-spacing:.16em;font-size:13px}
+  .btn.pri{background:linear-gradient(180deg,#f0c961,#b3892c);color:#20180c;
+           box-shadow:0 10px 30px rgba(224,182,74,.25)}
+  .btn.pri:hover{filter:brightness(1.06)}
+  .btn.gho{border:1px solid rgba(255,255,255,.18);color:#d8ccb4;font-weight:600}
+  .hint{font-size:11.5px;color:var(--mute);letter-spacing:.05em;margin-top:14px}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:26px 0 40px}
+  .card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:18px 18px 16px}
+  .card b{display:block;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);margin-bottom:8px}
+  .card p{margin:0;font-size:13px;line-height:1.6;color:#b8ad96}
+
+  .split{display:grid;grid-template-columns:1.15fr .85fr;gap:26px;align-items:center;margin:0 0 46px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .code{display:inline-block;background:rgba(224,182,74,.10);border:1px dashed rgba(224,182,74,.45);
+        border-radius:10px;padding:10px 16px;color:#f4d489;letter-spacing:.24em;font-size:18px}
+  h2{font-family:ui-monospace,monospace;font-size:clamp(18px,2.3vw,24px);letter-spacing:.06em;margin:0 0 12px;color:#f4e7c8}
+  .split p{margin:0 0 14px;font-size:14px;line-height:1.7;color:#b8ad96}
+  ul.plain{margin:0;padding-left:18px;color:#b8ad96;font-size:13.5px;line-height:1.85}
+  footer{border-top:1px solid rgba(255,255,255,.08);padding:22px 0 40px;color:#6f675a;font-size:11.5px;
+         display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  @media (max-width:760px){
+    .split{grid-template-columns:1fr}
+    .hero{min-height:70vh}
+    .hero .copy{padding:26px 20px 26px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="brand">EL REINO DE LAS CARTAS</span>
+    <a href="https://argami.github.io/ccarflashcards/">las tarjetas ↗</a>
+  </header>
+
+  <section class="hero" style="background-image:url('hero.jpg')">
+    <div class="veil"></div>
+    <div class="copy">
+      <h1>Estudiar el CCAR-F<br>como si fuera <em>un reino</em></h1>
+      <p class="lead">Cinco dominios, cinco guardianes y un mundo que solo avanza cuando respondes bien.
+      Sin instalar nada. Tu progreso vive detrás de un código de cinco y cinco.</p>
+      <div class="cta">
+        <a class="btn pri" href="juego.html">JUGAR</a>
+        <a class="btn gho" href="#codigo">ya tengo código</a>
+      </div>
+      <p class="hint">Escritorio con teclado. Se juega en el navegador.</p>
+    </div>
+  </section>
+
+  <section class="cards">
+    <div class="card"><b>APRENDES JUGANDO</b><p>Las criaturas de cada dominio preguntan sobre su propio terreno: fundamentos, contexto, seguridad, despliegue y evaluación.</p></div>
+    <div class="card"><b>TU CÓDIGO ES LA LLAVE</b><p>Sin cuentas ni correos. Cinco y cinco caracteres y vuelves a tu partida desde cualquier navegador.</p></div>
+    <div class="card"><b>DONDE LO DEJASTE</b><p>Posición, personaje y progreso se guardan solos mientras juegas. Cierras la pestaña y sigues luego en el mismo sitio.</p></div>
+  </section>
+
+  <section class="split" id="codigo">
+    <div>
+      <h2>Si ya jugaste, no empiezas de cero</h2>
+      <p>Entra con el código que te dimos al crear tu personaje. El reino te devuelve al punto exacto del mapa donde te quedaste, con el mismo personaje, la misma vida y los guardianes que ya venciste.</p>
+      <p class="mono" style="color:#8d8272;font-size:12px;letter-spacing:.1em">Un código de ejemplo es así:</p>
+      <span class="code">7KD2M-9QWRT</span>
+    </div>
+    <div>
+      <ul class="plain">
+        <li>No hay registro con email.</li>
+        <li>El código abre también tus tarjetas de estudio.</li>
+        <li>Si lo pierdes, empiezas un personaje nuevo: no hay recuperación.</li>
+        <li>Funciona en móvil, pero está pensado para teclado.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>Proyecto personal de estudio · no es material oficial de Anthropic</span>
+    <span class="mono">CCAR-F · 347 tarjetas · 30 subdominios</span>
+  </footer>
+</div>
+</body>
+</html>
