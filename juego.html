@@ -54,8 +54,25 @@
   #toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);
          background:rgba(20,17,13,.86);border:1px solid rgba(232,185,94,.45);
          color:#f6efdb;padding:9px 16px;border-radius:10px;font-size:12px;letter-spacing:.08em;display:none}
-  #load{position:fixed;inset:0;display:grid;place-items:center;background:#0d1520;
-        font-size:12px;letter-spacing:.14em;opacity:.85}
+  #load{position:fixed;inset:0;z-index:95;display:grid;place-items:center;
+        background:radial-gradient(60% 50% at 50% 40%,#141c28,#080c12 75%);
+        font-size:12px;letter-spacing:.14em;transition:opacity .22s ease}
+  #load.off{display:none}
+  #load .ldin{text-align:center}
+  #load .ldin b{
+    display:block;font-size:12px;letter-spacing:.34em;text-transform:uppercase;
+    color:#e2b95e;font-weight:600}
+  #load .ldin span{
+    display:block;margin-top:12px;font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:#7f7767}
+  #load .ldbar{
+    display:block;width:190px;height:2px;margin:18px auto 0;border-radius:2px;
+    background:rgba(200,162,74,.16);overflow:hidden}
+  #load .ldbar u{
+    display:block;height:100%;width:45%;
+    background:linear-gradient(90deg,transparent,#d4ac56,transparent);
+    animation:lslide 1.35s linear infinite}
+  @keyframes lslide{ from{transform:translateX(-130%)} to{transform:translateX(330%)} }
 
   /* ---------- duelo ---------- */
   body.induell .tag{display:none!important}
@@ -342,7 +359,7 @@
 </style>
 
 
-<div id="load">CARGANDO EL MUNDO…</div>
+<div id="load"><div class="ldin"><b>El Reino de las Cartas</b><span id="ldTxt">cargando el mundo</span><i class="ldbar"><u></u></i></div></div>
 <div id="hud">
   <div class="top">
     <span class="lvl" id="hLvl" title="nivel">1</span>
@@ -392,7 +409,7 @@
     <button class="pri" id="cfYes"></button>
   </div>
 </div></div>
-<div id="gate">
+<div id="gate" class="off">
   <div class="gt">
     <h1>EL REINO DE LAS CARTAS</h1>
     <p>Si ya tienes tu código, entra donde lo dejaste. Si es tu primera vez, crea un personaje y te damos uno.</p>
@@ -891,7 +908,16 @@ try{
   document.getElementById('load').textContent = 'ERROR CARGANDO EL MODELO: ' + e.message;
   throw e;
 }
-document.getElementById('load').style.display = 'none';
+function ocultarCarga(){
+  const el = document.getElementById('load');
+  if(!el || el.classList.contains('off')) return;
+  el.classList.add('off');
+  el.style.display = 'none';
+}
+function textoCarga(t){
+  const el = document.getElementById('ldTxt');
+  if(el) el.textContent = t;
+}
 
 const CLIPS = {};
 gltf.animations.forEach(c=> CLIPS[c.name] = c);
@@ -1725,6 +1751,7 @@ function entrarAlReino(nombre){
   if (!mundoListo) { construirMundo(); mundoListo = true; }
   zonaEtiqueta = 'D' + z.id + ' · ' + z.nombre.toUpperCase();
   syncHUD();
+  ocultarCarga();
   if (alEntrar && alEntrar.silencioso) toast2('vuelves al reino, ' + me.nombre);
   else toast2('despiertas en la ' + p.nombre + ', ' + me.nombre);
   if (!leerSync() || !leerSync().code) asegurarCodigo();
@@ -2090,6 +2117,7 @@ function mostrarCodigo(code){
 })();
 
 function abrirGate(){
+  ocultarCarga();
   document.getElementById('gate').classList.remove('off');
   document.getElementById('chargen').classList.add('off');
   const inp = document.getElementById('gtCode');
@@ -2150,18 +2178,24 @@ function aplicarPartida(st){
 
 async function iniciarSesion(){
   const s = leerSync();
+  textoCarga(s && s.code ? 'buscando tu partida' : 'preparando el reino');
+  // si el servidor no contesta, el portal aparece igual: la pantalla de
+  // carga no puede quedarse girando para siempre
+  const perro = setTimeout(()=>{ if(!jugando) abrirGate(); }, 8000);
   if(s && s.code){
     try{
       const r = await bajarPartida(s.code);
       if(r.existe){
         s.rev = r.rev || 0; escribirSync(s);
         aplicarPartida(r.payload || {});
+        clearTimeout(perro);
         return;
       }
       // el código guardado ya no existe en el servidor: se vuelve al portal
       escribirSync({ code:null, rev:0 });
     }catch(e){ /* sin red: se decide en el portal */ }
   }
+  clearTimeout(perro);
   abrirGate();
 }
 
