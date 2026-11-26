@@ -356,13 +356,53 @@ function zoneWeight(z, x, zz){
   const t = (d-inner)/(outer-inner);
   return 1 - t*t*(3-2*t);
 }
+// ---------------- regiones geográficas: el mundo entero repartido ----------------
+function geoHash(ix, iz){
+  let h = (ix | 0) * 374761393 + (iz | 0) * 668265263;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return ((h ^ (h >> 16)) >>> 0) / 4294967296;
+}
+function geoNoise(x, z){
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const fx = x - ix, fz = z - iz;
+  const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+  const a = geoHash(ix, iz), b = geoHash(ix + 1, iz), c = geoHash(ix, iz + 1), d = geoHash(ix + 1, iz + 1);
+  return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+}
+function geoFbm(x, z){
+  return geoNoise(x / 140, z / 140) * .60 + geoNoise(x / 58, z / 58) * .28 + geoNoise(x / 23, z / 23) * .12;
+}
+
+/** [dominio más cercano, segundo, mezcla]. 0 = bien dentro del primero,
+ *  1 = justo en la frontera (los dos colores se funden). Sin huecos: cada
+ *  punto del mundo pertenece a alguien. */
+function dominioMezcla(x, zz){
+  const wx = x  + (geoFbm(x * .010 + 11, zz * .010 + 3) - .5) * 300;
+  const wz = zz + (geoFbm(x * .010 + 57, zz * .010 + 29) - .5) * 300;
+  // dos escalas de ruido más: la frontera se abre en bahías y se cierra en cabos,
+  // en vez de salir recta entre dos centros
+  // ondulación de la frontera: crece desde el centro (donde vale 0, así el centro
+  // de cada dominio siempre queda dentro) hasta el borde de la región
+  const roncha = (geoNoise(x / 78, zz / 78) - .5) * 2 * .55
+               + (geoNoise(x / 34, zz / 34) - .5) * 2 * .30
+               + (geoNoise(x / 15, zz / 15) - .5) * 2 * .15;
+  let i0 = 0, i1 = 0, d0 = 1e9, d1 = 1e9;
+  for(let i = 0; i < ZONES.length; i++){
+    const zn = ZONES[i];
+    const raw = Math.hypot(wx - zn.cx, wz - zn.cz) / zn.r;
+    const d = raw * (1 + (i % 2 ? -roncha : roncha) * .30 * Math.min(1, raw / .34));
+    if(d < d0){ d1 = d0; i1 = i0; d0 = d; i0 = i; }
+    else if(d < d1){ d1 = d; i1 = i; }
+  }
+  const banda = .09;                                       // ~15 m de franja
+  const t = Math.min(1, Math.max(0, (d1 - d0) / banda));
+  return [i0, i1, t];
+}
+function dominioIdx(x, zz){ return dominioMezcla(x, zz)[0]; }
+
 function zoneAt(x, zz){
-  let best = null, bw = 0;
-  ZONES.forEach((z,i)=>{
-    const w = zoneWeight(z, x, zz);
-    if(w > bw){ bw = w; best = z; }
-  });
-  return bw > .25 ? best : null;
+  const m = dominioMezcla(x, zz);
+  return ZONES[m[0]] || null;
 }
 // ---------------- colisiones ----------------
 // círculos (árboles, rocas, castillo) y cajas orientadas (posadas)
@@ -436,14 +476,16 @@ for(let i=0;i<p.count;i++){
   const patch = .5+.5*Math.sin(x*.045)*Math.cos(z*.038);
   const c = cSand.clone().lerp(cMoss, THREE.MathUtils.clamp(t*.6+patch*.55,0,1));
   c.lerp(cDry, (.5+.5*Math.sin(x*.9+z*.7))*.18);
-  // bioma: el suelo manda dentro de cada zona
-  ZONES.forEach((zn,zi)=>{
-    const w = zoneWeight(zn, x, z);
-    if(w <= 0) return;
-    const grain = .5+.5*Math.sin(x*.31+zi)*Math.cos(z*.27);
-    const zc = ZONE_COL[zi][0].clone().lerp(ZONE_COL[zi][1], grain*.75);
-    c.lerp(zc, Math.min(1, w*1.15));
-  });
+  // bioma: cada punto pertenece a un dominio y la frontera es una franja corta
+  {
+    const m = dominioMezcla(x, z), b0 = m[0], b1 = m[1], bt = m[2];
+    const gr0 = .5 + .5 * Math.sin(x * .31 + b0 * 2.1) * Math.cos(z * .27 + b0);
+    const gr1 = .5 + .5 * Math.sin(x * .31 + b1 * 2.1) * Math.cos(z * .27 + b1);
+    const zc0 = ZONE_COL[b0][0].clone().lerp(ZONE_COL[b0][1], gr0 * .8);
+    const zc1 = ZONE_COL[b1][0].clone().lerp(ZONE_COL[b1][1], gr1 * .8);
+    const zc = zc1.lerp(zc0, .5 + .5 * bt);
+    c.lerp(zc, .92);
+  }
   col.push(c.r,c.g,c.b);
 }
 geo.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
@@ -2011,6 +2053,7 @@ const MM_ZONAS = (typeof ZONES !== 'undefined' ? ZONES : []).map(z=>({
   g0: mmHex((z.ground && z.ground[0]) || z.accent || '#7d9c55'),
   g1: mmHex((z.ground && z.ground[1]) || z.accent || '#95ae65'),
 }));
+const MM_TIERRA = MM_ZONAS.map(z=>[z.g0, z.g1]);
 
 /* --- horneado del mapa: 16 bandas para no congelar el juego --- */
 function mmHornear(){
@@ -2030,22 +2073,22 @@ function mmHornear(){
         const hh = h(wx, wz);
         alto[y * MM_N + x] = hh;
         let c = mmColor(hh);
-        // dentro de un dominio manda el suelo real de ese microclima; fuera, la altura.
-        // La frontera se deforma con ruido (una sola vez por píxel) y se funde en ~40 m:
-        // nada de discos, cada bioma entra en el siguiente como un terreno de verdad.
-        const warp = (mmFbm(wx, wz) - .5) * 110;
+        // el mapa usa la MISMA función que el terreno 3D (dominioMezcla): las
+        // fronteras del mapa y las del mundo no pueden discrepar
         let wr = 0, wg = 0, wb = 0, wt = 0;
-        for(let i = 0; i < MM_ZONAS.length; i++){
-          const zn = MM_ZONAS[i];
-          const d = Math.hypot(wx - zn.cx, wz - zn.cz);
-          const rEff = zn.r + warp;
-          if(d >= rEff + 40) continue;
-          const a = Math.min(1, Math.max(0, (rEff - d) / 26));   // degradado
-          const t = .5 + .5 * Math.sin(wx * .07 + wz * .05 + i * 1.7);   // moteado suave
-          wr += (zn.g0[0] + (zn.g1[0] - zn.g0[0]) * t) * a;
-          wg += (zn.g0[1] + (zn.g1[1] - zn.g0[1]) * t) * a;
-          wb += (zn.g0[2] + (zn.g1[2] - zn.g0[2]) * t) * a;
-          wt += a;
+        if(typeof dominioMezcla === 'function'){
+          const dz2 = dominioMezcla(wx, wz);
+          const gr0 = .5 + .5 * Math.sin(wx * .21 + dz2[0] * 1.7) * Math.cos(wz * .19 + dz2[0]);
+          const gr1 = .5 + .5 * Math.sin(wx * .21 + dz2[1] * 1.7) * Math.cos(wz * .19 + dz2[1]);
+          const A = MM_TIERRA[dz2[0]] || MM_TIERRA[0], B = MM_TIERRA[dz2[1]] || MM_TIERRA[0];
+          const mz = .5 + .5 * dz2[2];
+          for(let k = 0; k < 3; k++){
+            const c0 = A[0][k] + (A[1][k] - A[0][k]) * (gr0 * .8);
+            const c1 = B[0][k] + (B[1][k] - B[0][k]) * (gr1 * .8);
+            const cc = c1 + (c0 - c1) * mz;
+            if(k === 0) wr = cc; else if(k === 1) wg = cc; else wb = cc;
+          }
+          wt = .92;
         }
         // textura: grano fino y manchas medianas, como el papel de un mapa
         const grano = mmNoise(wx / 6.5, wz / 6.5);
@@ -2413,17 +2456,11 @@ function mmDibujar(){
   g.textAlign = 'start';
 }
 
-try { window.__dbg.mm = mm; } catch(e) {}
+try { window.__dbg.mm = mm; window.__dbg.zonas = { idx: dominioIdx, mezcla: dominioMezcla, ZONES }; } catch(e) {}
 
 /* --- qué dominio hay bajo el cursor --- */
 function mmZonaEn(x, z){
-  const warp = (mmFbm(x, z) - .5) * 130;
-  let mejor = -1, bd = 1e9;
-  MM_ZONAS.forEach((zn, i)=>{
-    const d = Math.hypot(x - zn.cx, z - zn.cz);
-    if(d < zn.r + warp && d < bd){ bd = d; mejor = i; }
-  });
-  return mejor;
+  return (typeof dominioIdx === 'function') ? dominioIdx(x, z) : -1;
 }
 mini.addEventListener('pointermove', e=>{
   if(mm.arrastrando){ mm.hoverZona = -1; return; }
