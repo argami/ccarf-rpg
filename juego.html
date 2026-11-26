@@ -206,6 +206,12 @@
             overflow:hidden;box-shadow:inset 0 0 0 1px rgba(200,162,74,.18)}
   #sel .bar i{display:block;height:100%;background:#b7452f;transition:width .2s ease}
   #sel .pista{color:#7f7768;font-size:9px;letter-spacing:.1em;margin-top:6px}
+  #sel .pelear{display:block;width:100%;margin-top:9px;padding:6px 8px;border-radius:7px;
+               font:inherit;font-size:10px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;
+               background:rgba(200,162,74,.16);border:1px solid rgba(212,172,86,.6);color:#f2e3b6}
+  #sel .pelear:hover{background:rgba(200,162,74,.3)}
+  #sel .pelear:disabled{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.16);
+                        color:#7c7364;cursor:not-allowed}
   @media(max-height:620px){#sel{bottom:88px}}
   /* ---------- HUD: nivel, nombre, claudes ---------- */
   #hud .top{display:flex;align-items:center;gap:9px;margin-bottom:2px}
@@ -295,7 +301,7 @@
     <div class="row"><span class="lbl">EXP</span><div class="bar xp"><i style="width:0%"></i></div><span class="num">0/144</span></div>
   </div>
 </div>
-<div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> hablar</div>
+<div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> pelear</div>
 <div id="mini"></div>
 <div id="mmZona">D1 · AGENTES</div>
 <div id="toast"></div>
@@ -3196,10 +3202,14 @@ function frame(){
       // se planta delante y espera: el combate lo empieza el jugador con un clic
       setAct(m, 'Idle');
       m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz) + Math.PI, dt, 4);
-      if(!m.aviso){ m.aviso = true; toast2(m.name + ' te ha visto: clic para pelear'); }
+      if(!m.aviso){ m.aviso = true; toast2(m.name + ' te ha visto'); }
     }
   });
   campoAvisoNivel();
+  if(sel && sel.kind === 'mob'){
+    const o = sel.ref, d = Math.hypot(o.pos.x - me.pos.x, o.pos.z - me.pos.z);
+    if(o.dead || d > 24){ sel = null; selBox.classList.remove('on'); }
+  }
   if(sel) pintarSel();
   ponerAro(anilloHover, (hover && hover.ref && !hover.ref.dead) ? hover.ref : null, hover && hover.kind);
   ponerAro(anilloSel, (sel && sel.ref) ? sel.ref : null, sel && sel.kind);
@@ -3963,10 +3973,25 @@ const selBox = (() => {
   d.innerHTML = '<div class="nom"></div>' +
                 '<div class="ln"><span data-k="tipo"></span><span data-k="nivel"></span></div>' +
                 '<div class="bar"><i style="width:100%"></i></div>' +
-                '<div class="pista">E para pelear</div>';
+                '<button class="pelear" id="selPelear">pelear</button>' +
+                '<div class="pista">clic = ficha · E o el botón = pelear</div>';
   document.body.appendChild(d);
   return d;
 })();
+
+// el boton del cuadro es la unica via (aparte de la E) para empezar el combate
+selBox.querySelector('#selPelear').onclick = () => {
+  if(!sel) return;
+  if(sel.kind === 'mob'){
+    const m = sel.ref;
+    if(m.dead || G.inDuel || G.dead) return;
+    const d = Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z);
+    if(d > 20){ toast2('demasiado lejos: acércate para pelear'); return; }
+    empezarDuelo('mob', m);
+  } else {
+    pvpTecla();                       // reta al jugador que tengas al lado
+  }
+};
 
 const nivelDeMob = m => m.boss ? 5 : (m.qs === 1 ? 1 : m.qs === 2 ? 2 : 4);
 const DIST_SELECCION = 20;       // ~6 veces el alcance de ataque (3,1 m)
@@ -4061,6 +4086,13 @@ function pintarSel(){
     ? Math.max(0, Math.min(100, (o.hp || 0) / 100 * 100))
     : 100;
   selBox.querySelector('.bar i').style.width = pct + '%';
+  // el clic solo enseña la ficha: pelear es cosa del boton (o de la E)
+  const boton = selBox.querySelector('#selPelear');
+  const dObj = Math.hypot(o.pos.x - me.pos.x, o.pos.z - me.pos.z);
+  const aTiro = sel.kind === 'mob' ? dObj <= 20 : dObj <= 12;
+  boton.textContent = sel.kind === 'mob' ? 'pelear' : 'retar';
+  boton.disabled = G.inDuel || G.dead || !aTiro;
+  boton.title = aTiro ? '' : 'demasiado lejos: acércate para poder pelear';
   selBox.classList.add('on');
 }
 
@@ -4068,9 +4100,9 @@ function pintarSel(){
 function aroResalte(color, op){
   const a = new THREE.Mesh(new THREE.RingGeometry(.88, 1.14, 44),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op,
-      side: THREE.DoubleSide, depthWrite: false }));
+      side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
   a.rotation.x = -Math.PI / 2;
-  a.renderOrder = 6;
+  a.renderOrder = 999;   // que no se lo coma el terreno ni el propio modelo
   a.visible = false;
   scene.add(a);
   return a;
@@ -4105,7 +4137,7 @@ try {
 canvasEl.addEventListener('pointermove', e => {
   if(dragging || !jugando) return;
   const ahora = performance.now();
-  if(ahora - hoverT < 110) return;          // no hace falta a cada píxel
+  if(ahora - hoverT < 55) return;           // no hace falta a cada píxel
   hoverT = ahora;
   hover = objetivoEn(e.clientX, e.clientY);
   canvasEl.style.cursor = hover ? 'pointer' : 'grab';
@@ -4113,6 +4145,9 @@ canvasEl.addEventListener('pointermove', e => {
 canvasEl.addEventListener('pointerleave', () => {
   hover = null;
   canvasEl.style.cursor = 'grab';
+});
+addEventListener('keydown', e => {
+  if(e.key === 'Escape' && sel && !G.inDuel){ sel = null; pintarSel(); }
 });
 
 let nClics = 0;
@@ -4123,17 +4158,7 @@ canvasEl.addEventListener('pointerup', e => {
   if(!jugando || G.inDuel || G.dead) return;
   sel = objetivoEn(e.clientX, e.clientY);
   pintarSel();
-  if(sel && sel.kind === 'mob'){
-    // con las criaturas no hay que pulsar E: al clic, pelea... si estas a tiro
-    const m = sel.ref;
-    const dMob = Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z);
-    if(dMob > 20){
-      toast2((m.circula ? 'guardián del castillo' : m.name) + ' · nivel ' + nivelDeMob(m) +
-             ' — demasiado lejos: el campo de fuerza no te deja acercarte más');
-    } else if(!G.inDuel) empezarDuelo('mob', m);
-  } else if(sel && sel.kind === 'player'){
-    toast2('seleccionado: ' + sel.ref.name + ' · pulsa E para retar');
-  }
+  // el clic solo enseña la ficha; para pelear, el boton del cuadro o la E
 });
 
 addEventListener('resize', ()=>{
