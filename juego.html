@@ -36,6 +36,15 @@
         font-size:12px;line-height:20px;text-align:center;cursor:pointer;user-select:none;z-index:3}
   #mini .mmbtn:hover{background:rgba(232,185,94,.28)}
   #mmCen{left:calc(50% - 26px);bottom:13px} #mmBig{left:calc(50% + 4px);bottom:13px}
+  #mmLeyenda{position:fixed;right:18px;display:flex;flex-direction:column;align-items:flex-start;
+        gap:3px;font-size:10px;letter-spacing:.09em;color:#e2dcc9;z-index:5;
+        background:rgba(14,12,10,.62);border:1px solid rgba(255,255,255,.12);
+        border-radius:8px;padding:5px 8px;pointer-events:none;
+        text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  #mmLeyenda div{display:flex;align-items:center;gap:5px;opacity:.72;transition:opacity .15s}
+  #mmLeyenda div.on{opacity:1;color:#fff}
+  #mmLeyenda i{width:8px;height:8px;border-radius:2px;display:inline-block;
+        box-shadow:0 0 0 1px rgba(0,0,0,.55)}
   #mini .mmpie{position:absolute;left:0;right:0;bottom:42px;text-align:center;font-size:9px;
         letter-spacing:.1em;color:#cfd8c8;text-shadow:0 1px 3px #000;pointer-events:none;z-index:3}
   .dot{position:absolute;width:6px;height:6px;border-radius:3px;display:none}
@@ -2028,6 +2037,7 @@ function mmMedir(){
   mm.escTope = mm.W / 90;                     // hasta ~90 m de ancho
   if(!mm.zoom) mm.zoom = 1;
   mm.esc = mm.escMin * mm.zoom;
+  if(typeof mmLeyendaPos === 'function') mmLeyendaPos();
 }
 
 /* --- ruido barato (valor + fBm): para que las fronteras no sean circunferencias --- */
@@ -2296,6 +2306,7 @@ function mmDibujar(){
   if(!MMB.llamado && mundoListo && jugando) mmHornear();
   if(!mm.W) mmMedir();
   if(mini.clientWidth !== mm.W || mini.clientHeight !== mm.H) mmMedir();
+  mmLeyendaMarca();
   const g = mmctx, W = mm.W, H = mm.H;
   g.setTransform(mm.dpr, 0, 0, mm.dpr, 0, 0);
   g.clearRect(0, 0, W, H);
@@ -2429,19 +2440,6 @@ function mmDibujar(){
     g.imageSmoothingEnabled = true;
     g.drawImage(mmMascara(mm.hoverZona, W, H), 0, 0, W, H);
 
-    const zt = ZONES[mm.hoverZona] || {};
-    const txt = (zt.dom || '') + (zt.biome ? ' · ' + zt.biome : '');
-    g.font = 'bold 12px monospace';
-    const ancho = g.measureText(txt).width + 14;
-    const bx = Math.min(W - ancho/2 - 4, Math.max(ancho/2 + 4, mm.hover.x));
-    const by = Math.max(18, mm.hover.y - 14);
-    g.fillStyle = 'rgba(14,12,10,.86)';
-    g.fillRect(bx - ancho/2, by - 14, ancho, 20);
-    g.strokeStyle = 'rgba(255,226,160,.75)'; g.lineWidth = 1;
-    g.strokeRect(bx - ancho/2, by - 14, ancho, 20);
-    g.fillStyle = 'rgba(250,245,232,.98)'; g.textAlign = 'center';
-    g.fillText(txt, bx, by);
-    g.textAlign = 'start';
   }
 
   // etiquetas: solo en la vista grande, si no se amontonan
@@ -2482,6 +2480,23 @@ function mmDibujar(){
     ? 'rueda · arrastra · M'
     : '';
   g.textAlign = 'start';
+}
+
+const mmLey = document.createElement('div');
+mmLey.id = 'mmLeyenda';
+document.body.appendChild(mmLey);
+ZONES.forEach((z, i)=>{
+  const d2 = document.createElement('div');
+  d2.dataset.i = i;
+  d2.innerHTML = '<i style="background:' + ((z.ground && z.ground[1]) || z.accent || '#888') + '"></i>' + (z.dom || '');
+  mmLey.appendChild(d2);
+});
+function mmLeyendaPos(){
+  const r = mini.getBoundingClientRect();
+  mmLey.style.top = Math.round(r.bottom + 7) + 'px';
+}
+function mmLeyendaMarca(){
+  [...mmLey.children].forEach(d2=> d2.classList.toggle('on', Number(d2.dataset.i) === mm.hoverZona));
 }
 
 try { window.__dbg.mm = mm; window.__dbg.zonas = { idx: dominioIdx, mezcla: dominioMezcla, ZONES }; } catch(e) {}
@@ -2546,6 +2561,7 @@ mini.addEventListener('wheel', e=>{
   const zmax = mm.escTope / mm.escMin;
   mm.zoom = Math.max(1, Math.min(zmax, mm.zoom * (e.deltaY < 0 ? 1.18 : 1/1.18)));
   mm.esc = mm.escMin * mm.zoom;
+  if(typeof mmLeyendaPos === 'function') mmLeyendaPos();
   // el punto bajo el cursor se queda quieto
   if(mm.esc > mm.escMin * 1.001){
     mm.cx += -mx / antes + mx / mm.esc;
