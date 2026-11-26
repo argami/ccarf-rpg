@@ -575,9 +575,9 @@ body:has(#confirm.on) #idioma{ display:none }
   <button class="b" id="bPvp" title="retar a otro jugador"><span class="k">1</span><span class="gl">&#9876;</span><small>duelo<br>pvp</small></button>
   <button class="b esc" id="bEsc" title="salir del combate"><span class="k">2</span><span class="gl">&#8634;</span><small>escapar</small></button>
   <span class="sep"></span>
-  <button class="b lit" id="bLog" title="mostrar u ocultar el registro">&#8801;</button>
-  <button class="b lit" id="bCod" title="tu codigo de jugador">&#35;</button>
   <button class="b lit" id="bConf" title="ajustes">&#9881;</button>
+  <button class="b lit" id="bCod" title="tu codigo de jugador">&#35;</button>
+  <button class="b lit" id="bHelp" title="ayuda y teclas">?</button>
 </div>
 <div id="keys"><div class="kw">
   <div class="ktabs">
@@ -4516,10 +4516,17 @@ function toggleMap(){
   m.style.display = oculto ? 'none' : '';
   if(z) z.style.display = oculto ? 'none' : '';
 }
-function toggleKeys(force){
+function pestanaKeys(cual){
+  document.querySelectorAll('#keys .kt').forEach(function(x){ x.classList.toggle('on', x.dataset.tab === cual); });
+  document.querySelectorAll('#keys .kpane').forEach(function(p){
+    p.classList.toggle('on', p.id === 'k' + cual.charAt(0).toUpperCase() + cual.slice(1));
+  });
+}
+function toggleKeys(force, cual){
   const k = $('keys'); if(!k) return;
   const on = (force === undefined) ? !k.classList.contains('on') : !!force;
   k.classList.toggle('on', on);
+  if(on && cual) pestanaKeys(cual);
 }
 
 function hayCodigo(){
@@ -4542,9 +4549,6 @@ function barraTick(){
   if(pvpB){ pvpB.disabled = bloqueado || !hayRival();
     pvpB.title = hayRival() ? 'retar a otro jugador' : 'no hay nadie a quien retar cerca'; }
   if(esc) esc.disabled = bloqueado || !enDuelo;
-  const logB = $('bLog');
-  if(logB){ const box = $('logIn'); const hay = !!(box && box.children.length);
-    logB.disabled = !hay; logB.title = hay ? 'mostrar u ocultar el registro' : 'el registro esta vacio'; }
   const codB = $('bCod');
   if(codB){ const hay = hayCodigo(); codB.disabled = !hay;
     codB.title = hay ? 'tu codigo de jugador' : 'todavia no tienes codigo'; }
@@ -4566,13 +4570,13 @@ addEventListener('keydown', function(ev){
   const pvpB = $('bPvp'), escB = $('bEsc');
   if(pvpB) pvpB.onclick = function(){ try{ pvpTecla(); }catch(e){} };
   if(escB) escB.onclick = function(){ try{ pedirEscape(); }catch(e){} };
-  const logB = $('bLog'); if(logB) logB.onclick = toggleLog;
   const codB = $('bCod');
   if(codB) codB.onclick = function(){
     const m = $('myCode');
     if(m){ try{ m.click(); }catch(e){} }
   };
-  const confB = $('bConf'); if(confB) confB.onclick = function(){ toggleKeys(); };
+  const confB = $('bConf'); if(confB) confB.onclick = function(){ toggleKeys(true, 'idioma'); };
+  const helpB = $('bHelp'); if(helpB) helpB.onclick = function(){ toggleKeys(true, 'teclas'); };
   const kc = $('keysClose'); if(kc) kc.onclick = function(){ toggleKeys(false); };
   document.querySelectorAll('#keys .kt').forEach(function(t){
     t.onclick = function(){
