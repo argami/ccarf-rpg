@@ -291,6 +291,54 @@
   /* el cuadro de seleccion no recibe clics, pero su boton si: si no, PELEAR
      y RETAR eran decorativos y solo funcionaba la E */
   #sel .pelear{pointer-events:auto}
+
+/* ---------- repaso del combate ---------- */
+#repa{
+  position:fixed; inset:0; z-index:62; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  background:rgba(4,6,10,.78); backdrop-filter:blur(3px)
+}
+#repa.on{ display:flex }
+#repa .rpw{
+  width:min(600px,94vw); max-height:86vh; box-sizing:border-box;
+  display:flex; flex-direction:column;
+  background:linear-gradient(180deg,#161b26,#0e1219);
+  border:1px solid rgba(200,162,74,.5); border-radius:12px;
+  box-shadow:0 24px 60px rgba(0,0,0,.65); overflow:hidden
+}
+#repa h2{
+  margin:0; padding:16px 22px 10px; font-size:12px; letter-spacing:.2em;
+  text-transform:uppercase; color:#e2b95e; font-weight:600;
+  border-bottom:1px solid rgba(200,162,74,.22)
+}
+#repa .rpsum{
+  padding:12px 22px 14px; font-size:12.5px; line-height:1.7; color:#cfc4ab;
+  border-bottom:1px solid rgba(200,162,74,.14)
+}
+#repa .rpsum b{ color:#ecd9a5; font-weight:600 }
+#repa .rplist{ padding:6px 22px 4px; overflow-y:auto; overscroll-behavior:contain }
+#repa .rpi{ padding:12px 0 13px; border-bottom:1px solid rgba(200,162,74,.1) }
+#repa .rpi:last-child{ border-bottom:0 }
+#repa .rph{
+  display:flex; justify-content:space-between; gap:10px;
+  font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#8d8371
+}
+#repa .rpi-ok .rpv{ color:#7fc08a }
+#repa .rpi-bad .rpv{ color:#e2745f }
+#repa .rpq{ margin:7px 0 8px; font-size:13px; line-height:1.5; color:#e6dcc4 }
+#repa .rpa{ margin:0 0 4px; font-size:12px; line-height:1.5; color:#a99f8b }
+#repa .rpa b{ color:#e6dcc4; font-weight:500 }
+#repa .rpc b{ color:#9fd0a7 }
+#repa .rpw2{
+  margin:7px 0 0; padding-left:10px; border-left:2px solid rgba(200,162,74,.35);
+  font-size:11.5px; line-height:1.55; color:#9a907c
+}
+#repa .rpfoot{ padding:12px 22px 16px; text-align:right; border-top:1px solid rgba(200,162,74,.16) }
+#repa .rpfoot button{
+  font:inherit; font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+  padding:7px 16px; border-radius:7px; cursor:pointer;
+  background:rgba(200,162,74,.16); border:1px solid rgba(212,172,86,.6); color:#f2e3b6
+}
 </style>
 
 
@@ -308,7 +356,7 @@
     <div class="row"><span class="lbl">EXP</span><div class="bar xp"><i style="width:0%"></i></div><span class="num">0/144</span></div>
   </div>
 </div>
-<div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> pelear</div>
+<div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> hablar</div>
 <div id="mini"></div>
 <div id="mmZona">D1 · AGENTES</div>
 <div id="toast"></div>
@@ -328,6 +376,13 @@
     <div class="dres" id="dRes"></div>
     <button id="dFlee" title="salir del combate perdiendo un poco de experiencia">escapar <b>−10 exp</b></button>
   </div>
+</div></div>
+
+<div id="repa"><div class="rpw">
+  <h2>Repaso del combate</h2>
+  <div class="rpsum" id="rpSum"></div>
+  <div class="rplist" id="rpList"></div>
+  <div class="rpfoot"><button id="rpClose">cerrar</button></div>
 </div></div>
 <div id="confirm"><div class="cfw">
   <h2 id="cfTitle"></h2>
@@ -3260,7 +3315,10 @@ function vigiaTick(){
 
     if(!m.aggro){ wanderMob(m, dt); return; }
 
-    if(dist > ALCANCE){
+    // 0,3 de holgura: si no, la criatura oscila justo en el borde del alcance
+    // y nunca llega a plantarse (medido: se quedaba a 3,10 m sin atacar nunca)
+    if(dist > ALCANCE + 0.3){
+      m.tPlanta = 0;
       const vx = dx/dist, vz = dz/dist, paso = (m.boss ? 3.1 : 2.4) * dt;
       const nx = m.pos.x + vx*paso, nz = m.pos.z + vz*paso;
       if(m.poly && !enPoligono(nx, nz, m.poly)){
@@ -3273,10 +3331,12 @@ function vigiaTick(){
       m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(vx, vz), dt, 6);
       setAct(m, 'Walk');
     } else {
-      // se planta delante y espera: el combate lo empieza el jugador con un clic
+      // se planta, te encara y te ataca: no hay que pulsar nada
       setAct(m, 'Idle');
-      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz) + Math.PI, dt, 4);
+      m.g.rotation.y = turnTo(m.g.rotation.y, Math.atan2(dx, dz), dt, 4);
       if(!m.aviso){ m.aviso = true; toast2(m.name + ' te ha visto'); }
+      if(!m.tPlanta) m.tPlanta = performance.now();
+      if(performance.now() - m.tPlanta > 450 && !G.inDuel){ empezarDuelo('mob', m); return; }
     }
   });
   campoAvisoNivel();
@@ -3311,7 +3371,7 @@ function vigiaTick(){
     toast.textContent = posadaCerca.p.nombre + ' — pulsa E para entrar';
   } else if(near && !SHOT && !G.inDuel && !G.dead && !tiendaAbierta){
     toast.style.display='block';
-    toast.textContent = near.m.name + ' — pulsa E para pelear';
+    toast.textContent = near.m.name + ' te ha visto';
   } else if(!G.inDuel && !G.dead && toastT <= 0) toast.style.display='none';
 
   // comer: canalización que se pierde si te retan
@@ -3572,7 +3632,7 @@ const POOL = [{"d":"1","s":"An online retailer's support agent answers 'where is
 const G = { hp:100, hpMax:100, exp:0, lvl:1, coins:0, inDuel:false, dead:false, jugando:false };
 const EXP_NIVEL = 144, NIVEL_TOPE = 5;
 const DMG = { pvp:25, mob:10 };
-const T_PREGUNTA = 20;
+const T_PREGUNTA = 60;
 const PAUSA = QS.has('slow') ? 9000 : 1700;   // solo para capturas
 
 const $ = id => document.getElementById(id);
@@ -3676,6 +3736,7 @@ function responder(idx){
   if(!D || D.locked) return;
   D.locked = true;
   const c = D.preguntas[D.i];
+  D.mias = D.mias || []; D.mias[D.i] = idx;
   const acierto = idx === c.c;
   const botAcierto = Math.random() < D.botP && D.kind==='pvp';
   [...$('dOpts').children].forEach((b,i)=>{
@@ -3763,6 +3824,7 @@ let ultimoMob = null;
 function terminar(res){
   if(!D) return;
   const d = D; D = null;
+  window.__rev = { d, res };
   if(d.kind === 'mob' && d.foe) ultimoMob = d.foe;
   const lines = {
     gana:  d.kind==='pvp'
@@ -3816,6 +3878,7 @@ function cerrarDuelo(res){
   if(ultimoMob){ apartarDelCombate(ultimoMob); ultimoMob = null; }
   toast2(res==='gana' ? 'duelo ganado' : res==='pierde' ? 'duelo perdido'
         : res==='escapa' ? 'escapas del combate' : 'empate');
+  try{ abrirRevision(window.__rev); }catch(e){}
   try{ if(jugando) guardarPartida(); }catch(e){}   // el combate se guarda al momento
 }
 
@@ -3832,6 +3895,7 @@ function morir(){
     me.heading = Math.PI;
     syncHUD();
     toast2('despiertas en la posada con la mitad de la vida');
+    setTimeout(()=>{ try{ abrirRevision(window.__rev); }catch(e){} }, 600);
   }, 3200);
 }
 
@@ -3875,6 +3939,57 @@ setTimeout(()=>{
 
 // ---------------- modales de confirmacion ----------------
 let modalAbierto = false;
+
+// repaso del combate: que preguntaron, que contestaste y que era correcto
+function abrirRevision(rev){
+  if(!rev || !rev.d) return;
+  const d = rev.d, res = rev.res || 'fin';
+  const preg = d.preguntas || [];
+  if(!preg.length) return;
+  const et = { gana:'ganado', pierde:'perdido', empate:'empate',
+               muerte:'caíste', escapa:'escapaste' }[res] || res;
+  const mias = d.mias || [];
+  let ok = 0, ko = 0, mudo = 0;
+  preg.forEach((c,i)=>{
+    if(mias[i] == null) mudo++;
+    else if(mias[i] === c.c) ok++;
+    else ko++;
+  });
+  const rival = (d.foe && d.foe.name) || (d.kind === 'pvp' ? 'otro jugador' : 'la criatura');
+  let sum = 'contra <b>' + rival + '</b> · resultado: <b>' + et + '</b> · ' +
+            'aciertos <b>' + ok + '</b> de <b>' + preg.length + '</b>';
+  if(ko) sum += ' · fallos <b>' + ko + '</b>';
+  if(mudo) sum += ' · sin responder <b>' + mudo + '</b>';
+  if(d.kind === 'mob' && ko)
+    sum += '<br>cada fallo te costó <b>vida</b>; bastaba' +
+           (d.necesarias === 1 ? ' <b>1 acierto</b>' : ' <b>' + d.necesarias + ' aciertos</b>') +
+           ' para ganar.';
+  if(!ko && !mudo) sum += '<br>sin un solo fallo: nada que corregir.';
+  $('rpSum').innerHTML = sum;
+
+  const list = $('rpList'); list.innerHTML = '';
+  preg.forEach((c,i)=>{
+    const mi = mias[i];
+    const bien = mi === c.c;
+    const it = document.createElement('div');
+    it.className = 'rpi ' + (mi == null ? 'rp0' : bien ? 'rpi-ok' : 'rpi-bad');
+    let h = '<div class="rph"><span>pregunta ' + (i+1) + ' de ' + preg.length +
+            ' · D' + c.d + '</span><span class="rpv">' +
+            (mi == null ? 'sin responder' : bien ? '✓ correcta' : '× fallo') + '</span></div>';
+    h += '<p class="rpq">' + c.q + '</p>';
+    h += '<p class="rpa">tu respuesta: <b>' + (mi == null ? '—' : c.o[mi]) + '</b></p>';
+    if(!bien) h += '<p class="rpa rpc">la buena: <b>' + c.o[c.c] + '</b></p>';
+    h += '<p class="rpw2">' + c.w + '</p>';
+    it.innerHTML = h;
+    list.appendChild(it);
+  });
+  $('repa').classList.add('on');
+  $('rpClose').onclick = ()=> $('repa').classList.remove('on');
+  $('repa').onclick = e=>{ if(e.target && e.target.id === 'repa') $('repa').classList.remove('on'); };
+}
+
+function revisionTick(){}
+
 function confirmar(titulo, texto, si, no, onSi, onNo){
   $('cfTitle').textContent = titulo;
   $('cfText').innerHTML = texto;
@@ -4254,8 +4369,8 @@ function pintarSel(){
   boton.disabled = G.inDuel || G.dead || !aTiro;
   boton.title = aTiro ? '' : 'demasiado lejos: acércate para retarlo';
   const pista = selBox.querySelector('.pista');
-  if(pista) pista.textContent = esJugador ? 'clic = retar · la E también vale'
-                                          : 'pulsa E para pelear';
+  if(pista) pista.textContent = esJugador ? 'clic = retar'
+                                          : 'acércate y te atacará';
   selBox.classList.add('on');
 }
 
