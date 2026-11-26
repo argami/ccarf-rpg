@@ -1365,6 +1365,7 @@ function entrarAlReino(nombre){
   else toast2('despiertas en la ' + p.nombre + ', ' + me.nombre);
   if (!leerSync() || !leerSync().code) asegurarCodigo();
   guardarPartida();
+  reinoZona = -1;                     // fuerza reconexión de presencia al entrar
   alEntrar = null;
 }
 
@@ -1522,6 +1523,174 @@ function asegurarCodigo(){
 setInterval(()=>{ if(jugando && sucio) guardarPartida(); }, 6000);
 addEventListener('pagehide', ()=>{ if(jugando) guardarPartida(true); });
 addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden' && jugando) guardarPartida(true); });
+
+// ---------------- otros jugadores (presencia en vivo) ----------------
+// Una sala por dominio en el Worker. Aquí solo se dibuja lo que llega.
+const remotos = new Map();       // id efímero -> jugador remoto
+const cachePj = new Map();       // personaje -> promesa del glb (se carga una vez)
+let wsReino = null, wsEspera = 0, reinoZona = -1, reinoProx = 0;
+
+function escalaAltura(a){ return a === 'bajo' ? .9 : a === 'alto' ? 1.1 : 1; }
+function modeloDe(id){
+  const k = PERSONAJES.some(p=> p.id === id) ? id : PERSONAJES[0].id;
+  if(!cachePj.has(k)){
+    const pj = PERSONAJES.find(p=> p.id === k);
+    cachePj.set(k, loader.loadAsync(pj.src).catch(e=>{ console.warn('remoto sin modelo', pj.src, e); return null; }));
+  }
+  return cachePj.get(k);
+}
+
+async function crearRemoto(a){
+  if(!a || remotos.has(a.id)) return;
+  const g = await modeloDe(a.personaje);
+  if(!g || remotos.has(a.id) || !jugando) return;
+
+  const root = skeletonClone(g.scene);
+  root.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(root);
+  const talla = bb.max.y - bb.min.y;
+  const base = (isFinite(talla) && talla > .01) ? 1.72 / talla : 1;
+  root.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+  root.scale.setScalar(base * escalaAltura(a.altura));
+
+  const pick = (x, y)=> clipBy(g.animations, x) || (y && clipBy(g.animations, y)) || g.animations[0];
+  const mixer = new THREE.AnimationMixer(root);
+  const acts = {
+    idle: mixer.clipAction(pick('Idle')),
+    walk: mixer.clipAction(pick('Walking', 'Walk')),
+    run:  mixer.clipAction(pick('Running', 'Run')),
+  };
+  acts.idle.play();
+
+  const el = document.createElement('div');
+  el.className = 'tag';
+  el.textContent = a.nombre;
+  el.style.color = '#9fd2ff';
+  document.body.appendChild(el);
+
+  const pl = {
+    name: a.nombre, id: a.id, isMe: false,
+    root, mixer, acts, cur: 'idle', el,
+    pos: new THREE.Vector3(a.px, 0, a.pz),
+    destino: new THREE.Vector3(a.px, 0, a.pz),
+    heading: a.r || 0, rumbo: a.r || 0, hp: a.hp, lvl: a.lvl,
+  };
+  root.rotation.y = pl.heading + GIRO;
+  root.position.set(a.px, h(a.px, a.pz), a.pz);
+  scene.add(root);
+
+  players.push(pl);
+  pl.dot = makeDot('#9fd2ff', 6);
+  dots.push(pl.dot);                 // el minimapa indexa por posición: se mantiene alineado
+  remotos.set(a.id, pl);
+  toast2(a.nombre + ' anda por el reino');
+}
+
+function quitarRemoto(id){
+  const pl = remotos.get(id);
+  if(!pl) return;
+  remotos.delete(id);
+  const i = players.indexOf(pl);
+  if(i >= 0){ players.splice(i, 1); dots.splice(i, 1); }
+  scene.remove(pl.root);
+  try{ pl.mixer.stopAllAction(); }catch(e){}
+  pl.root.traverse(o=>{ if(o.geometry) o.geometry.dispose(); });
+  pl.el.remove();
+  if(pl.dot) pl.dot.remove();
+}
+
+function reinoEnviar(ws){
+  if(!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({
+    t: 'pos',
+    px: Math.round(me.pos.x * 10) / 10,
+    pz: Math.round(me.pos.z * 10) / 10,
+    r: Math.round(me.heading * 100) / 100,
+    hp: Math.round(G.hp), lvl: G.lvl,
+  }));
+}
+
+function reinoCerrar(){
+  const w = wsReino;
+  wsReino = null;
+  remotos.forEach((pl, id)=> quitarRemoto(id));
+  if(w){ try{ w.close(); }catch(e){} }
+}
+
+function reinoConectar(){
+  const s = leerSync();
+  if(!s || !s.code) return;                    // sin código no hay a quién presentar
+  const zn = zoneAt(me.pos.x, me.pos.z);
+  const zona = zn ? zn.id : 0;
+  const q = new URLSearchParams({
+    n: me.nombre || 'errante', p: personajeElegido, a: alturaElegida,
+    px: Math.round(me.pos.x), pz: Math.round(me.pos.z),
+    r: me.heading, hp: Math.round(G.hp), lvl: G.lvl,
+  });
+  const url = RPGBASE.replace(/^http/, 'ws') + '/reino/' + zona + '?' + q.toString();
+  let ws;
+  try{ ws = new WebSocket(url); }catch(e){ return; }
+  wsReino = ws;
+  reinoZona = zona;
+  ws.onopen = ()=>{ wsEspera = 0; };
+  ws.onmessage = ev=>{
+    let d; try{ d = JSON.parse(ev.data); }catch(e){ return; }
+    if(d.t === 'join') crearRemoto(d);
+    else if(d.t === 'pos'){
+      const pl = remotos.get(d.id);
+      if(!pl) return;
+      pl.destino.set(d.px, 0, d.pz);
+      pl.rumbo = d.r || 0; pl.hp = d.hp; pl.lvl = d.lvl;
+    }
+    else if(d.t === 'bye') quitarRemoto(d.id);
+  };
+  ws.onclose = ()=>{
+    if(wsReino !== ws) return;
+    wsReino = null;
+    remotos.forEach((pl, id)=> quitarRemoto(id));
+    if(!jugando) return;
+    wsEspera = Math.min(15000, wsEspera ? wsEspera * 2 : 1000);
+    setTimeout(()=>{ if(jugando && !wsReino) reinoConectar(); }, wsEspera);
+  };
+  ws.onerror = ()=>{ try{ ws.close(); }catch(e){} };
+}
+
+// se llama en cada frame, antes de mover a los jugadores
+function reinoTick(dt){
+  if(!jugando) return;
+  const zn = zoneAt(me.pos.x, me.pos.z);
+  const zona = zn ? zn.id : 0;
+  if(zona !== reinoZona) reinoConectar();       // cambió de dominio: otra sala
+
+  const ahora = performance.now();
+  if(wsReino && wsReino.readyState === 1 && ahora - reinoProx > 200){
+    reinoProx = ahora;
+    reinoEnviar(wsReino);
+  }
+  if(!remotos.size) return;
+  remotos.forEach(pl=>{
+    pl.pos.lerp(pl.destino, Math.min(1, dt * 10));
+    const falta = pl.pos.distanceTo(pl.destino);
+    setClip(pl, falta > .25 ? 'walk' : 'idle');
+    if(falta > .05){
+      const want = Math.atan2(pl.destino.x - pl.pos.x, pl.destino.z - pl.pos.z) + Math.PI;
+      pl.heading = turnTo(pl.heading, want, dt, 10);
+    } else if(pl.rumbo != null){
+      pl.heading = turnTo(pl.heading, pl.rumbo, dt, 8);
+    }
+    pl.root.rotation.y = pl.heading + GIRO;
+  });
+}
+
+addEventListener('pagehide', ()=> reinoCerrar());
+
+// superficie de depuración (el módulo no expone nada al ámbito global)
+if(typeof window !== 'undefined'){
+  (window.__dbg = window.__dbg || {}).reino = {
+    remotos, get ws(){ return wsReino; }, conectar: reinoConectar, cerrar: reinoCerrar,
+    get zona(){ return reinoZona; },
+  };
+}
 
 // ---------------- portal ----------------
 function mostrarCodigo(code){
@@ -1782,6 +1951,8 @@ function frame(){
     setClip(me, 'walk');
     me.mixer.setTime(SHOT_T);
   }
+
+  reinoTick(dt);                      // otros jugadores: interpolar y avisar
 
   players.forEach(pl=>{
     pl.root.position.set(pl.pos.x, h(pl.pos.x, pl.pos.z), pl.pos.z);
