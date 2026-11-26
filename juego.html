@@ -183,6 +183,13 @@
          align-items:center;justify-content:center;flex-direction:column;gap:10px;
          font-family:ui-monospace,monospace;color:#e8b9a4;letter-spacing:.2em;font-size:13px}
   #death.on{display:flex}
+
+#campoAviso{position:fixed;left:50%;bottom:86px;transform:translate(-50%,10px);z-index:60;
+  padding:.55em .95em;border-radius:10px;background:rgba(10,32,66,.82);color:#cfe4ff;
+  border:1px solid rgba(120,180,255,.45);font-size:14px;letter-spacing:.02em;
+  opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease}
+#campoAviso.on{opacity:1;transform:translate(-50%,0)}
+@media(max-width:720px){#campoAviso{bottom:74px;font-size:13px}}
 </style>
 <div id="load">CARGANDO EL MUNDO…</div>
 <div id="hud">
@@ -2717,15 +2724,19 @@ function construirCampo(){
 function puedeEntrarCastillo(){ return G.lvl >= CASTILLO_NIVEL; }
 
 /** el campo empuja hacia fuera mientras no tengas el nivel */
+let campoAvisoEl = null;
+const CAMPO_AVISO_M = 14;      // se avisa a 14 m del campo
+
 function campoAvisoNivel(){
-  if(puedeEntrarCastillo()) return;
-  const d = Math.hypot(me.pos.x - CASTILLO.x, me.pos.z - CASTILLO.z);
-  if(d > CASTILLO_R + 12 || d < CASTILLO_R) return;     // solo al acercarse desde fuera
-  const ahora = performance.now();
-  if(ahora - campoAviso > 6000){
-    campoAviso = ahora;
-    toast2('el campo de fuerza te frena: hace falta nivel ' + CASTILLO_NIVEL);
+  if(!campoAvisoEl){
+    campoAvisoEl = document.createElement('div');
+    campoAvisoEl.id = 'campoAviso';
+    campoAvisoEl.textContent = 'campo de fuerza: hace falta nivel ' + CASTILLO_NIVEL;
+    document.body.appendChild(campoAvisoEl);
   }
+  const d = Math.hypot(me.pos.x - CASTILLO.x, me.pos.z - CASTILLO.z);
+  const cerca = !puedeEntrarCastillo() && d < CASTILLO_R + CAMPO_AVISO_M && d > CASTILLO_R - 2;
+  campoAvisoEl.classList.toggle('on', cerca);   // sigue puesto mientras no te alejes
 }
 
 function campoMuro(){
