@@ -497,7 +497,6 @@
 <div id="barra">
   <button class="b" id="bPvp" title="retar a otro jugador"><span class="k">1</span><span class="gl">&#9876;</span><small>duelo<br>pvp</small></button>
   <button class="b esc" id="bEsc" title="salir del combate"><span class="k">2</span><span class="gl">&#8634;</span><small>escapar</small></button>
-  <button class="b" id="bRep" title="repasar el ultimo combate"><span class="k">3</span><span class="gl">&#8635;</span><small>repaso</small></button>
   <span class="sep"></span>
   <button class="b lit" id="bLog" title="mostrar u ocultar el registro">&#8801;</button>
   <button class="b lit" id="bCod" title="tu codigo de jugador">&#35;</button>
@@ -513,7 +512,6 @@
     <dt>E</dt><dd>hablar en la posada &middot; aceptar un reto</dd>
     <dt>1</dt><dd>retar a otro jugador</dd>
     <dt>2</dt><dd>escapar del combate</dd>
-    <dt>3</dt><dd>repaso del &uacute;ltimo combate</dd>
     <dt>Esc</dt><dd>soltar la selecci&oacute;n</dd>
   </dl>
   <div class="kfoot"><button id="keysClose">cerrar</button></div>
@@ -4242,9 +4240,6 @@ function barraTick(){
   if(pvpB){ pvpB.disabled = bloqueado || !hayRival();
     pvpB.title = hayRival() ? 'retar a otro jugador' : 'no hay nadie a quien retar cerca'; }
   if(esc) esc.disabled = bloqueado || !enDuelo;
-  const rep = $('bRep');
-  if(rep){ const hay = !!window.__rev; rep.disabled = bloqueado || !hay;
-    rep.title = hay ? 'repasar el ultimo combate' : 'todavia no has peleado'; }
   const logB = $('bLog');
   if(logB){ const box = $('logIn'); const hay = !!(box && box.children.length);
     logB.disabled = !hay; logB.title = hay ? 'mostrar u ocultar el registro' : 'el registro esta vacio'; }
@@ -4258,18 +4253,17 @@ barraTick();
 restaurarLog();
 
 addEventListener('keydown', function(ev){
-  if(ev.key === '1' || ev.key === '2' || ev.key === '3'){
-    const b = $('bPvp'); const m = { '1': $('bPvp'), '2': $('bEsc'), '3': $('bRep') }[ev.key];
+  if(ev.key === '1' || ev.key === '2'){
+    const m = { '1': $('bPvp'), '2': $('bEsc') }[ev.key];
     if(!m || m.disabled || m.style.display === 'none') return;
     ev.preventDefault(); m.click();
   }
 });
 
 (function conectarBarra(){
-  const pvpB = $('bPvp'), escB = $('bEsc'), repB = $('bRep');
+  const pvpB = $('bPvp'), escB = $('bEsc');
   if(pvpB) pvpB.onclick = function(){ try{ pvpTecla(); }catch(e){} };
   if(escB) escB.onclick = function(){ try{ pedirEscape(); }catch(e){} };
-  if(repB) repB.onclick = function(){ try{ if(window.__rev) abrirRevision(window.__rev); }catch(e){} };
   const logB = $('bLog'); if(logB) logB.onclick = toggleLog;
   const codB = $('bCod');
   if(codB) codB.onclick = function(){
