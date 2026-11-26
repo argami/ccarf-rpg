@@ -816,7 +816,9 @@ const enPoligono = (x, z, poly) => {
   }
   return c;
 };
-const enCiudad = (x, z) => INNS.some(p => Math.hypot(p.x-x, p.z-z) < TOWN_R);
+const enCiudad = (x, z) =>
+  INNS.some(p => Math.hypot(p.x-x, p.z-z) < TOWN_R) ||
+  Math.hypot(x, z) < PLAZA_R + 10;      // la plaza también es refugio
 function puntoLibre(m){
   if(!m.poly) return null;
   let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
@@ -1153,7 +1155,6 @@ const INNS = [
   {id:'P3', zone:3, nombre:'Posada de la Nieve',   x:-170, z:56},
   {id:'P4', zone:4, nombre:'Posada del Bosque',    x:106, z:-146},
   {id:'P5', zone:5, nombre:'Posada de la Sabana',  x:-176, z:-222},
-  {id:'P0', zone:0, nombre:'Posada de la Plaza',   x:0,   z:32},
 ];
 
 const MERCA = [
@@ -2364,6 +2365,14 @@ function mmDibujar(){
     g.fillStyle = (p.zone === 0 && G.lvl < 5) ? 'rgba(255,212,121,.35)' : '#ffd479';
     g.fill(); g.strokeStyle = 'rgba(60,40,10,.85)'; g.lineWidth = 1; g.stroke();
   });
+  // la posada bajo el cursor se remarca
+  if(typeof mm.hoverInn === 'number' && mm.hoverInn >= 0 && INNS[mm.hoverInn]){
+    const p2 = INNS[mm.hoverInn];
+    const [x, y] = mmA(p2.x, p2.z);
+    g.beginPath(); g.arc(x, y, 9 * k, 0, Math.PI*2);
+    g.strokeStyle = 'rgba(255,212,121,.95)'; g.lineWidth = 1.6;
+    g.stroke();
+  }
   // castillo
   {
     const [x, y] = mmA(0, 0);
@@ -2499,17 +2508,28 @@ function mmLeyendaPos(){
 }
 /* un solo renglón, pegado al mapa y solo mientras señalas una zona */
 function mmLeyendaMarca(){
-  const i = mm.hoverZona;
-  if(typeof i !== 'number' || i < 0 || !ZONES[i]){ mmLey.classList.remove('on'); return; }
-  const z = ZONES[i];
-  const col = (z.ground && z.ground[1]) || z.accent || '#888';
-  const txt = '<i style="background:' + col + '"></i><span>' + (z.dom || '') + '</span>';
-  if(mmLey.dataset.i !== String(i)){ mmLey.innerHTML = txt; mmLey.dataset.i = String(i); }
+  let clave = null, txt = null;
+  if(typeof mm.hoverInn === 'number' && mm.hoverInn >= 0 && INNS[mm.hoverInn]){
+    const p2 = INNS[mm.hoverInn];
+    clave = 'inn' + mm.hoverInn;
+    const nom = p2.nombre || ('Posada ' + p2.id);
+    txt = '<i style="background:#ffd479;border-radius:2px"></i><span>' + nom + '</span>';
+  } else {
+    const i = mm.hoverZona;
+    if(typeof i === 'number' && i >= 0 && ZONES[i]){
+      const z = ZONES[i];
+      clave = 'zona' + i;
+      txt = '<i style="background:' + ((z.ground && z.ground[1]) || z.accent || '#888') + '"></i>' +
+            '<span>' + (z.dom || '') + '</span>';
+    }
+  }
+  if(!txt){ mmLey.classList.remove('on'); return; }
+  if(mmLey.dataset.i !== clave){ mmLey.innerHTML = txt; mmLey.dataset.i = clave; }
   mmLey.classList.add('on');
   mmLeyendaPos();
 }
 
-try { window.__dbg.mm = mm; window.__dbg.zonas = { idx: dominioIdx, mezcla: dominioMezcla, ZONES }; } catch(e) {}
+try { window.__dbg.mm = mm; window.__dbg.zonas = { idx: dominioIdx, mezcla: dominioMezcla, ZONES }; window.__dbg.inns = INNS; } catch(e) {}
 
 /* --- máscara de una región: píxeles que de verdad pertenecen a ese dominio --- */
 let mascCache = null;
@@ -2554,12 +2574,19 @@ mini.addEventListener('pointermove', e=>{
   const r = mini.getBoundingClientRect();
   const px2 = e.clientX - r.left, py2 = e.clientY - r.top;
   mm.hover = { x: px2, y: py2 };
-  mm.hoverZona = mmZonaEn(
-    mm.cx + (px2 - r.width/2) / mm.esc,
-    mm.cz + (py2 - r.height/2) / mm.esc
-  );
+  const wx2 = mm.cx + (px2 - r.width/2) / mm.esc;
+  const wz2 = mm.cz + (py2 - r.height/2) / mm.esc;
+  mm.hoverZona = mmZonaEn(wx2, wz2);
+  // ¿hay una posada justo debajo del dedo? (umbral en metros, pero nunca menor de 9 px)
+  const radio = Math.max(12, 9 / mm.esc);
+  mm.hoverInn = -1;
+  let bd = 1e9;
+  INNS.forEach((p2, i)=>{
+    const d2 = Math.hypot(wx2 - p2.x, wz2 - p2.z);
+    if(d2 < radio && d2 < bd){ bd = d2; mm.hoverInn = i; }
+  });
 });
-mini.addEventListener('pointerleave', ()=>{ mm.hover = null; mm.hoverZona = -1; });
+mini.addEventListener('pointerleave', ()=>{ mm.hover = null; mm.hoverZona = -1; mm.hoverInn = -1; });
 
 /* --- controles --- */
 mmMedir();
