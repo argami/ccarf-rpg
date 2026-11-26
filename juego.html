@@ -190,7 +190,25 @@
   opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease}
 #campoAviso.on{opacity:1;transform:translate(-50%,0)}
 @media(max-width:720px){#campoAviso{bottom:74px;font-size:13px}}
+  /* ---------- selección: nada de nombres flotando ---------- */
+  .tag{display:none!important}
+  #sel{position:fixed;left:16px;bottom:104px;z-index:26;min-width:186px;display:none;
+       padding:9px 11px 10px;border-radius:10px;
+       background:linear-gradient(180deg,rgba(26,35,49,.96),rgba(18,24,34,.96));
+       border:1px solid rgba(200,162,74,.35);box-shadow:0 8px 22px rgba(0,0,0,.45);
+       font-size:11px;letter-spacing:.08em;color:#e8dcc0;pointer-events:none}
+  #sel.on{display:block}
+  #sel .nom{color:#ffd98a;letter-spacing:.14em;font-size:12px;margin-bottom:5px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+  #sel .ln{display:flex;justify-content:space-between;gap:12px;color:#9a9082;font-size:10px}
+  #sel .ln b{color:#d8c9a6;font-weight:400}
+  #sel .bar{height:7px;border-radius:4px;background:rgba(0,0,0,.55);margin-top:7px;
+            overflow:hidden;box-shadow:inset 0 0 0 1px rgba(200,162,74,.18)}
+  #sel .bar i{display:block;height:100%;background:#b7452f;transition:width .2s ease}
+  #sel .pista{color:#7f7768;font-size:9px;letter-spacing:.1em;margin-top:6px}
+  @media(max-height:620px){#sel{bottom:88px}}
 </style>
+
 <div id="load">CARGANDO EL MUNDO…</div>
 <div id="hud">
   <div id="zone">D1 · AGENTES</div>
@@ -2803,7 +2821,7 @@ function campoLatido(t){
 
 // --- los guardianes: dan vueltas al castillo por fuera, en un anillo que no pueden
 // cruzar. Nadie entra ahí dentro: ni el jugador (campo) ni ellos (anillo fijo).
-const ANILLO_R = 32, ANILLO_R0 = 26, ANILLO_R1 = 40;
+const ANILLO_R = 50, ANILLO_R0 = 45, ANILLO_R1 = 58;
 
 function sectorAnillo(cx, cz, r0, r1, a0, a1, n){
   const pts = [];
@@ -3085,6 +3103,9 @@ function frame(){
     }
   });
   campoAvisoNivel();
+  if(sel) pintarSel();
+  ponerAro(anilloHover, (hover && hover.ref && !hover.ref.dead) ? hover.ref : null, hover && hover.kind);
+  ponerAro(anilloSel, (sel && sel.ref) ? sel.ref : null, sel && sel.kind);
   guardianesCirculan(dt);   // después de la IA: manda la órbita del campo
   encuentrosTick(dt);
 
@@ -3704,6 +3725,9 @@ addEventListener('keydown', e=>{
   const dp = posadaCerca ? posadaCerca.d : 1e9;
   const dm = near ? near.d : 1e9;
   if(dp <= dm && posadaCerca){ abrirTienda(posadaCerca.p); return; }
+  const elegido = (sel && sel.kind === 'mob' && !sel.ref.dead &&
+                   Math.hypot(sel.ref.pos.x - me.pos.x, sel.ref.pos.z - me.pos.z) < 8) ? sel.ref : null;
+  if(elegido){ empezarDuelo('mob', elegido); return; }
   if(near) empezarDuelo('mob', near.m);
 });
 addEventListener('keydown', e=>{
@@ -3719,6 +3743,160 @@ addEventListener('keydown', e=>{
   if(!m) return;
   const i = parseInt(m[1],10) - 1;
   if(i < D.preguntas[D.i].o.length) responder(i);
+});
+
+// ================== selección con el ratón ==================
+// ni jugadores ni criaturas llevan nombre flotando: se pulsa sobre ellos y sale un cuadro
+let sel = null;                                  // { kind:'mob'|'player', ref }
+
+const selBox = (() => {
+  const d = document.createElement('div');
+  d.id = 'sel';
+  d.innerHTML = '<div class="nom"></div>' +
+                '<div class="ln"><span data-k="tipo"></span><span data-k="nivel"></span></div>' +
+                '<div class="bar"><i style="width:100%"></i></div>' +
+                '<div class="pista">E para pelear</div>';
+  document.body.appendChild(d);
+  return d;
+})();
+
+const nivelDeMob = m => m.boss ? 5 : (m.qs === 1 ? 1 : m.qs === 2 ? 2 : 4);
+const DIST_SELECCION = 30;      // distancia media: más lejos no se puede ni señalar
+
+const rayo = new THREE.Raycaster();
+let pulsX = 0, pulsY = 0;
+
+function objetivoEn(cx, cy){
+  const r = canvasEl.getBoundingClientRect();
+  rayo.setFromCamera(new THREE.Vector2(
+    ((cx - r.left) / r.width) * 2 - 1,
+    -((cy - r.top) / r.height) * 2 + 1), cam);
+  const grupos = [];
+  const cercaDeMi = (x, z) => Math.hypot(x - me.pos.x, z - me.pos.z) <= DIST_SELECCION;
+  for(const m of mobs){ if(!m.dead && m.g.visible && cercaDeMi(m.pos.x, m.pos.z)) grupos.push(m.g); }
+  for(const p of players){ if(p.root && cercaDeMi(p.pos.x, p.pos.z)) grupos.push(p.root); }
+  const hits = rayo.intersectObjects(grupos, true);
+  for(const h of hits){
+    let o = h.object;
+    while(o){
+      for(const m of mobs) if(m.g === o) return { kind:'mob', ref:m };
+      for(const p of players) if(p.root === o) return { kind:'player', ref:p };
+      o = o.parent;
+    }
+  }
+
+  // segunda pasada: los modelos animados no siempre coinciden con su caja, así que
+  // también vale pulsar cerca de donde se ve la criatura en pantalla
+  let mejor = null, mejorD = 70;
+  const ver = (x, y, z, obj, kind) => {
+    const p = new THREE.Vector3(x, y, z).project(cam);
+    if(p.z > 1) return;
+    const sx = (p.x * .5 + .5) * r.width + r.left, sy = (-p.y * .5 + .5) * r.height + r.top;
+    const d = Math.hypot(sx - cx, sy - cy);
+    if(d < mejorD){ mejorD = d; mejor = { kind, ref: obj }; }
+  };
+  for(const m of mobs){
+    if(m.dead || !m.g.visible || !cercaDeMi(m.pos.x, m.pos.z)) continue;
+    const alto = Math.max(1, (m.talla || 2) * .5);
+    ver(m.pos.x, m.g.position.y + alto, m.pos.z, m, 'mob');
+  }
+  for(const p of players){
+    if(!p.root || !cercaDeMi(p.pos.x, p.pos.z)) continue;
+    ver(p.pos.x, p.root.position.y + 1.1, p.pos.z, p, 'player');
+  }
+  return mejor;
+}
+
+function cantarSeleccion(){
+  const s = sel;
+  if(s && s.kind === 'mob') cantarSelec(s.ref.name);
+  else if(s && s.kind === 'player') cantarSelec(s.ref.name + ' · jugador');
+}
+function cantarSelec(txt){ toast2('seleccionado: ' + txt); }
+function pintarSel(){
+  if(!sel){ selBox.classList.remove('on'); return; }
+  const o = sel.ref;
+  const vivo = sel.kind === 'mob' ? (!o.dead && o.g.visible) : players.indexOf(o) >= 0;
+  if(!vivo){ sel = null; selBox.classList.remove('on'); return; }
+  const nombre = (sel.kind === 'mob' ? o.name : o.name) || '—';
+  const nivel  = sel.kind === 'mob' ? nivelDeMob(o) : (o.lvl || 1);
+  selBox.querySelector('.nom').textContent = String(nombre).toUpperCase();
+  selBox.querySelector('[data-k=tipo]').textContent = sel.kind === 'mob'
+    ? (o.boss ? 'jefe' : 'criatura · ' + o.qs + (o.qs === 1 ? ' pregunta' : ' preguntas'))
+    : 'jugador';
+  selBox.querySelector('[data-k=nivel]').innerHTML = 'nivel <b>' + nivel + '</b>';
+  const pct = sel.kind === 'player'
+    ? Math.max(0, Math.min(100, (o.hp || 0) / 100 * 100))
+    : 100;
+  selBox.querySelector('.bar i').style.width = pct + '%';
+  selBox.classList.add('on');
+}
+
+// aro de resalte: al pasar por encima y al dejar seleccionado
+function aroResalte(color, op){
+  const a = new THREE.Mesh(new THREE.RingGeometry(.88, 1.14, 44),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op,
+      side: THREE.DoubleSide, depthWrite: false }));
+  a.rotation.x = -Math.PI / 2;
+  a.renderOrder = 6;
+  a.visible = false;
+  scene.add(a);
+  return a;
+}
+const anilloHover = aroResalte('#ffe6ae', .9);
+const anilloSel   = aroResalte('#bfe4ff', .75);
+let hover = null, hoverT = 0;
+
+function ponerAro(aro, obj, kind){
+  if(!obj){ aro.visible = false; return; }
+  const alto = kind === 'mob' ? Math.max(1, obj.talla || 2) : 2;
+  aro.position.set(obj.pos.x, h(obj.pos.x, obj.pos.z) + .08, obj.pos.z);
+  const r = Math.max(1.1, alto * .55);
+  aro.scale.setScalar(r);
+  aro.visible = true;
+}
+
+try {
+  window.__sel = {
+    prueba: (x, y) => objetivoEn(x, y),
+    estado: () => sel, hover: () => hover,
+    anillos: () => [anilloHover.visible, anilloSel.visible],
+    estado2: () => ({ jugando, duel: G.inDuel, muerto: G.dead, dist: DIST_SELECCION, clics: nClics }),
+  };
+  window.__proyecta = (x, y, z) => {
+    const v = new THREE.Vector3(x, y, z).project(cam);
+    return [(v.x * .5 + .5) * innerWidth, (-v.y * .5 + .5) * innerHeight];
+  };
+} catch(e) {}
+
+canvasEl.addEventListener('pointermove', e => {
+  if(dragging || !jugando) return;
+  const ahora = performance.now();
+  if(ahora - hoverT < 110) return;          // no hace falta a cada píxel
+  hoverT = ahora;
+  hover = objetivoEn(e.clientX, e.clientY);
+  canvasEl.style.cursor = hover ? 'pointer' : 'grab';
+});
+canvasEl.addEventListener('pointerleave', () => {
+  hover = null;
+  canvasEl.style.cursor = 'grab';
+});
+
+let nClics = 0;
+canvasEl.addEventListener('pointerdown', e => { pulsX = e.clientX; pulsY = e.clientY; }, true);
+canvasEl.addEventListener('pointerup', e => {
+  nClics++;
+  if(Math.hypot(e.clientX - pulsX, e.clientY - pulsY) > 6) return;   // ha sido arrastre de cámara
+  if(!jugando || G.inDuel || G.dead) return;
+  sel = objetivoEn(e.clientX, e.clientY);
+  pintarSel();
+  if(sel && sel.kind === 'mob'){
+    // con las criaturas no hay que pulsar E: al clic, pelea
+    const m = sel.ref;
+    if(!G.inDuel) empezarDuelo('mob', m);
+  } else if(sel && sel.kind === 'player'){
+    toast2('seleccionado: ' + sel.ref.name + ' · pulsa E para retar');
+  }
 });
 
 addEventListener('resize', ()=>{
