@@ -242,8 +242,8 @@
   </div>
   <div id="zone">D1 · AGENTES</div>
   <div class="bars">
-    <div class="row"><span class="lbl">VIDA</span><div class="bar hp"><i style="width:100%"></i></div><span class="num">100/100</span></div>
-    <div class="row"><span class="lbl">EXP</span><div class="bar xp"><i style="width:0%"></i></div><span class="num">nivel 1 · 0/144</span></div>
+    <div class="row"><span class="lbl">PV</span><div class="bar hp"><i style="width:100%"></i></div><span class="num">100/100</span></div>
+    <div class="row"><span class="lbl">EXP</span><div class="bar xp"><i style="width:0%"></i></div><span class="num">0/144</span></div>
   </div>
 </div>
 <div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> hablar</div>
@@ -3360,7 +3360,7 @@ function syncHUD(){
   const pct = G.lvl >= NIVEL_TOPE ? 100 : Math.max(0, Math.min(100, enNivel/EXP_NIVEL*100));
   document.querySelector('#hud .bar.xp i').style.width = pct + '%';
   document.querySelector('#hud .bar.xp').nextElementSibling.textContent =
-    (G.lvl>=NIVEL_TOPE ? 'nivel 5 · tope' : 'nivel '+G.lvl+' · '+Math.round(enNivel)+'/'+EXP_NIVEL);
+    Math.round(enNivel) + '/' + EXP_NIVEL;
   const lvlEl = $('hLvl');   if(lvlEl) lvlEl.textContent = G.lvl;
   const nmEl  = $('hName');  if(nmEl)  nmEl.textContent = (me && me.nombre) || 'jugador';
   const coEl  = $('hCoins'); if(coEl)  coEl.textContent = G.coins;
