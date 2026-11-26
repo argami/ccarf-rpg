@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>El Reino de las Cartas — CCAR-F en un mundo jugable</title>
-<meta name="description" content="Recorre cinco dominios, responde preguntas reales del examen CCAR-F y guarda tu partida con un código de jugador.">
-<meta property="og:title" content="El Reino de las Cartas">
-<meta property="og:description" content="Estudia el CCAR-F jugando: cinco dominios, criaturas guardianas y un código para volver donde lo dejaste.">
+<title>El Reino de las Cartas — Anthropic Kingdom</title>
+<meta name="description" content="Aspirante a Nombrado Caballero CCAR-F: cinco dominios, criaturas que guardan las preguntas del examen y duelos contra otros aspirantes. Cinco niveles y 347 preguntas hasta el título.">
+<meta property="og:title" content="El Reino de las Cartas — Anthropic Kingdom">
+<meta property="og:description" content="Cazar criaturas y retar a otros aspirantes para ganarte el nombre de Caballero CCAR-F: cinco niveles, 347 preguntas.">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#0d1014">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚔️</text></svg>">
@@ -26,11 +26,11 @@
   .hero{position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--line);
         background:#11151a center 32%/cover no-repeat;min-height:min(74vh,620px);display:flex;align-items:flex-end}
   .hero .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,12,16,.20) 0%,rgba(9,12,16,.72) 42%,rgba(9,12,16,.96) 100%)}
-  .hero .copy{position:relative;padding:38px 34px 34px;max-width:660px}
-  h1{max-width:16ch;margin:0 0 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  .hero .copy{position:relative;padding:38px 34px 34px;max-width:680px}
+  h1{max-width:18ch;margin:0 0 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
      font-size:clamp(26px,4.1vw,46px);line-height:1.06;letter-spacing:.02em;color:#f4e7c8}
   h1 em{font-style:normal;color:var(--gold)}
-  .lead{margin:0 0 24px;font-size:clamp(14px,1.6vw,17px);line-height:1.6;color:#cbbfa6;max-width:52ch}
+  .lead{margin:0 0 24px;font-size:clamp(14px,1.6vw,17px);line-height:1.6;color:#cbbfa6;max-width:54ch}
   .cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .btn{display:inline-block;text-decoration:none;padding:15px 30px;border-radius:12px;font-weight:700;
        letter-spacing:.16em;font-size:13px}
@@ -40,7 +40,28 @@
   .btn.gho{border:1px solid rgba(255,255,255,.18);color:#d8ccb4;font-weight:600}
   .hint{font-size:11.5px;color:var(--mute);letter-spacing:.05em;margin-top:14px}
 
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:26px 0 40px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+         background:rgba(200,162,74,.18);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:22px 0 0}
+  .stats div{background:#0d1014;padding:16px 18px}
+  .stats b{display:block;font-family:ui-monospace,monospace;font-size:22px;color:#f4d489;letter-spacing:.02em}
+  .stats span{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+
+  section.juego{margin:52px 0 8px}
+  section.juego p.intro{margin:0 0 24px;font-size:14.5px;line-height:1.75;color:#b8ad96;max-width:76ch}
+  ol.pasos{list-style:none;margin:0;padding:0;display:grid;gap:14px;counter-reset:p}
+  ol.pasos li{position:relative;padding:16px 18px 16px 58px;border:1px solid rgba(255,255,255,.08);
+              border-radius:14px;background:rgba(255,255,255,.025)}
+  ol.pasos li::before{counter-increment:p;content:counter(p);position:absolute;left:16px;top:15px;
+              width:26px;height:26px;display:grid;place-items:center;border-radius:8px;
+              background:rgba(224,182,74,.14);border:1px solid rgba(224,182,74,.45);
+              color:#f4d489;font-family:ui-monospace,monospace;font-size:12px}
+  ol.pasos b{display:block;font-family:ui-monospace,monospace;font-size:11.5px;letter-spacing:.16em;
+             text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+  ol.pasos p{margin:0;font-size:13.5px;line-height:1.7;color:#b8ad96}
+  ol.pasos code{font-family:ui-monospace,monospace;font-size:12.5px;padding:1px 5px;
+                border-radius:4px;background:rgba(255,255,255,.06);color:#e6dcc4}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:34px 0 40px}
   .card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:18px 18px 16px}
   .card b{display:block;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);margin-bottom:8px}
   .card p{margin:0;font-size:13px;line-height:1.6;color:#b8ad96}
@@ -58,6 +79,7 @@
     .split{grid-template-columns:1fr}
     .hero{min-height:70vh}
     .hero .copy{padding:26px 20px 26px}
+    ol.pasos li{padding-left:52px}
   }
 </style>
 </head>
@@ -71,21 +93,70 @@
   <section class="hero" style="background-image:url('hero.jpg')">
     <div class="veil"></div>
     <div class="copy">
-      <h1>Estudiar el CCAR-F<br>como si fuera <em>un reino</em></h1>
-      <p class="lead">Cinco dominios, cinco guardianes y un mundo que solo avanza cuando respondes bien.
-      Sin instalar nada. Tu progreso vive detrás de un código de cinco y cinco.</p>
+      <h1>El Anthropic Kingdom<br>no regala <em>títulos</em></h1>
+      <p class="lead">Eres aspirante a Nombrado Caballero CCAR-F, y eso es un privilegio que hay que
+      ganarse: cruzar los cinco dominios, cazar a las criaturas que guardan las preguntas y batir
+      a otros aspirantes en duelo. Cinco niveles y 347 preguntas te separan del nombre.</p>
       <div class="cta">
-        <a class="btn pri" href="juego.html">JUGAR</a>
+        <a class="btn pri" href="juego.html">EMPEZAR LA RONDA</a>
         <a class="btn gho" href="#codigo">ya tengo código</a>
       </div>
-      <p class="hint">Escritorio con teclado. Se juega en el navegador.</p>
+      <p class="hint">Escritorio con teclado · se juega en el navegador · sin cuenta ni correo</p>
     </div>
   </section>
 
+  <div class="stats">
+    <div><b>5</b><span>dominios</span></div>
+    <div><b>347</b><span>preguntas</span></div>
+    <div><b>5</b><span>niveles</span></div>
+    <div><b>60 s</b><span>por pregunta</span></div>
+  </div>
+
+  <section class="juego" id="juego">
+    <h2>Cómo se juega</h2>
+    <p class="intro">El reino <em>es</em> el temario. Cada dominio del examen tiene su tierra, su clima y
+    sus criaturas, y las preguntas que te lanzan son las de verdad: las mismas tarjetas, con sus cuatro
+    opciones y su explicación. No hay monedas ni tiendas; lo único que se acumula es experiencia, y lo
+    único que se puede perder es vida.</p>
+
+    <ol class="pasos">
+      <li>
+        <b>Entras como aspirante</b>
+        <p>Nivel uno, cien de vida, ni una carta en la mano. Nadie te recibe con honores: el reino
+        empieza en una pradera y las criaturas ya te están mirando.</p>
+      </li>
+      <li>
+        <b>Cazas criaturas</b>
+        <p>Cada criatura guarda una pregunta de su dominio. Cuando te detecta, el aviso de su cabeza
+        pasa de gris a ámbar y luego a rojo; cuando se planta delante empieza el careo: una pregunta,
+        sesenta segundos. Aciertas y cae. Fallas y te arranca vida. Los jefes de dominio aguantan
+        varios asaltos y pagan mucho más.</p>
+      </li>
+      <li>
+        <b>Retas a otros aspirantes</b>
+        <p>Un duelo entre jugadores son cinco preguntas y veinticinco de daño por fallo, con la vida
+        que cada uno lleva encima. Basta con tenerlos cerca: pulsas <code>1</code>, esperas su respuesta
+        y el resultado queda anotado en el registro de los dos.</p>
+      </li>
+      <li>
+        <b>Subes de nivel</b>
+        <p>Cada acierto deja experiencia: 144 por nivel, cinco niveles. Al llegar arriba se te nombra
+        <strong>Caballero CCAR-F</strong>, que es el honor al que venías. A partir de ahí el reino sigue
+        abierto para repasar los dominios que peor se te dan.</p>
+      </li>
+      <li>
+        <b>Vuelves cuando quieras</b>
+        <p>Las posadas son refugio: dentro no te atacan. Tu personaje, tu posición y lo que llevas
+        andado se guardan solos, y un código de cinco y cinco te devuelve al mismo punto desde
+        cualquier navegador.</p>
+      </li>
+    </ol>
+  </section>
+
   <section class="cards">
-    <div class="card"><b>APRENDES JUGANDO</b><p>Las criaturas de cada dominio preguntan sobre su propio terreno: fundamentos, contexto, seguridad, despliegue y evaluación.</p></div>
-    <div class="card"><b>TU CÓDIGO ES LA LLAVE</b><p>Sin cuentas ni correos. Cinco y cinco caracteres y vuelves a tu partida desde cualquier navegador.</p></div>
-    <div class="card"><b>DONDE LO DEJASTE</b><p>Posición, personaje y progreso se guardan solos mientras juegas. Cierras la pestaña y sigues luego en el mismo sitio.</p></div>
+    <div class="card"><b>LO QUE TE PREGUNTAN</b><p>Fundamentos, contexto, seguridad, despliegue y evaluación: los cinco dominios del CCAR-F, uno por región del mapa.</p></div>
+    <div class="card"><b>NADA DE TRAMPA</b><p>Fallar duele de verdad —vida, y a veces la posada—, pero al terminar cada pelea puedes abrir el repaso y ver qué contestaste, cuál era la buena y por qué.</p></div>
+    <div class="card"><b>TU CÓDIGO ES LA LLAVE</b><p>Sin cuentas ni correos. Cinco y cinco caracteres y vuelves a tu partida, con tu nivel y tus guardianes vencidos, desde cualquier navegador.</p></div>
   </section>
 
   <section class="split" id="codigo">

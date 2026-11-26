@@ -445,22 +445,38 @@
 }
 #keys.on{ display:flex }
 #keys .kw{
-  width:min(420px,94vw); box-sizing:border-box;
+  width:min(540px,94vw); box-sizing:border-box;
   background:linear-gradient(180deg,#161b26,#0e1219);
   border:1px solid rgba(200,162,74,.5); border-radius:12px; overflow:hidden;
   box-shadow:0 24px 60px rgba(0,0,0,.65)
 }
-#keys h2{
-  margin:0; padding:14px 20px 10px; font-size:11px; letter-spacing:.2em;
-  text-transform:uppercase; color:#e2b95e; font-weight:600;
-  border-bottom:1px solid rgba(200,162,74,.22)
+#keys .ktabs{
+  display:flex; gap:2px; padding:10px 14px 0; border-bottom:1px solid rgba(200,162,74,.22)
 }
-#keys dl{
-  margin:0; padding:12px 20px 14px; display:grid;
-  grid-template-columns:auto 1fr; gap:7px 14px; font-size:12px
+#keys .kt{
+  padding:6px 16px 7px; cursor:pointer; font-size:10px; letter-spacing:.18em;
+  text-transform:uppercase; color:#8d8371;
+  border:1px solid transparent; border-bottom:0; border-radius:6px 6px 0 0
 }
-#keys dt{ color:#c79a1f; white-space:nowrap }
-#keys dd{ margin:0; color:#cfc4ab }
+#keys .kt:hover{ color:#cbbfa6 }
+#keys .kt.on{
+  color:#f2e6c6; background:rgba(200,162,74,.12);
+  border-color:rgba(200,162,74,.4); margin-bottom:-1px
+}
+#keys .kbody{ padding:14px 22px 18px; max-height:min(64vh,470px); overflow-y:auto }
+#keys .kpane{ display:none }
+#keys .kpane.on{ display:block }
+#keys .kl{ margin:0 0 10px; font-size:12.5px; line-height:1.65; color:#cfc4ab }
+#keys .kl b{ color:#ecd9a5 }
+#keys .klist{ margin:0; padding-left:16px; font-size:12px; line-height:1.6; color:#b8ad96 }
+#keys .klist li{ margin-bottom:7px }
+#keys .klist b{ color:#e2c887; font-weight:600 }
+#keys .klist i{ color:#e6dcc4 }
+#keys .kdl{
+  margin:0; display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-size:12px
+}
+#keys .kdl dt{ color:#c79a1f; white-space:nowrap }
+#keys .kdl dd{ margin:0; color:#cfc4ab }
 #keys .kfoot{ padding:10px 20px 14px; text-align:right; border-top:1px solid rgba(200,162,74,.16) }
 #keys .kfoot button{
   font:inherit; font-size:10px; letter-spacing:.16em; text-transform:uppercase;
@@ -528,17 +544,46 @@
   <button class="b lit" id="bKeys" title="teclas y controles">?</button>
 </div>
 <div id="keys"><div class="kw">
-  <h2>teclas y controles</h2>
-  <dl>
-    <dt>&#8593; &#8595; &#8592; &#8594;</dt><dd>mover</dd>
-    <dt>rat&oacute;n</dt><dd>girar la c&aacute;mara</dd>
-    <dt>rueda</dt><dd>zoom</dd>
-    <dt>Shift</dt><dd>correr</dd>
-    <dt>E</dt><dd>hablar en la posada &middot; aceptar un reto</dd>
-    <dt>1</dt><dd>retar a otro jugador</dd>
-    <dt>2</dt><dd>escapar del combate</dd>
-    <dt>Esc</dt><dd>soltar la selecci&oacute;n</dd>
-  </dl>
+  <div class="ktabs">
+    <span class="kt on" data-tab="reino">el reino</span>
+    <span class="kt" data-tab="teclas">teclas</span>
+  </div>
+  <div class="kbody">
+    <div class="kpane on" id="kReino">
+      <p class="kl"><b>Eres aspirante a Nombrado Caballero CCAR-F.</b> Este es el Anthropic
+      Kingdom, y aqu&iacute; el nombre no se regala: se gana cazando criaturas y batiendo a
+      otros aspirantes.</p>
+      <ul class="klist">
+        <li><b>El reino es el temario.</b> Cinco dominios, los mismos del examen
+        &mdash;fundamentos, contexto, seguridad, despliegue y evaluaci&oacute;n&mdash;,
+        uno por regi&oacute;n.</li>
+        <li><b>Cazar.</b> Cada criatura guarda una pregunta de su dominio. Te ve, se acerca y
+        te planta cara: una pregunta, sesenta segundos. Aciertas y cae; fallas y te quita vida.
+        Los jefes aguantan varios asaltos y pagan m&aacute;s.</li>
+        <li><b>Retar.</b> Contra otro jugador son cinco preguntas y 25 de da&ntilde;o por fallo,
+        con la vida que llev&aacute;is. Pulsa <b>1</b> con alguien cerca.</li>
+        <li><b>Crecer.</b> Cada acierto deja experiencia: 144 por nivel, hasta el nivel 5.
+        Al llegar se te nombra <b>Caballero CCAR-F</b>.</li>
+        <li><b>Caer.</b> Despiertas en la posada con la mitad de la vida, y cualquier pelea
+        en curso se cancela.</li>
+        <li><b>Repasar.</b> Cada pelea queda en el registro de abajo a la izquierda; el enlace
+        <i>ver combate</i> abre lo que contestaste, lo correcto y por qu&eacute;.</li>
+      </ul>
+    </div>
+    <div class="kpane" id="kTeclas">
+      <dl class="kdl">
+        <dt>&#8593; &#8595; &#8592; &#8594;</dt><dd>mover</dd>
+        <dt>rat&oacute;n</dt><dd>girar la c&aacute;mara</dd>
+        <dt>rueda</dt><dd>zoom</dd>
+        <dt>Shift</dt><dd>correr</dd>
+        <dt>E</dt><dd>hablar en la posada &middot; aceptar un reto</dd>
+        <dt>clic</dt><dd>seleccionar criatura o jugador</dd>
+        <dt>1</dt><dd>retar a otro jugador</dd>
+        <dt>2</dt><dd>escapar del combate</dd>
+        <dt>Esc</dt><dd>soltar la selecci&oacute;n</dd>
+      </dl>
+    </div>
+  </div>
   <div class="kfoot"><button id="keysClose">cerrar</button></div>
 </div></div>
 <div id="toast"></div>
@@ -4369,6 +4414,14 @@ addEventListener('keydown', function(ev){
   };
   const keyB = $('bKeys'); if(keyB) keyB.onclick = function(){ toggleKeys(); };
   const kc = $('keysClose'); if(kc) kc.onclick = function(){ toggleKeys(false); };
+  document.querySelectorAll('#keys .kt').forEach(function(t){
+    t.onclick = function(){
+      document.querySelectorAll('#keys .kt').forEach(function(x){ x.classList.toggle('on', x === t); });
+      document.querySelectorAll('#keys .kpane').forEach(function(p){
+        p.classList.toggle('on', p.id === 'k' + t.dataset.tab.charAt(0).toUpperCase() + t.dataset.tab.slice(1));
+      });
+    };
+  });
   const ks = $('keys');
   if(ks) ks.onclick = function(e){ if(e.target && e.target.id === 'keys') toggleKeys(false); };
   window.__log = { revs: ()=>window.__revs, restaurar: restaurarLog, linea: logLinea };
