@@ -1934,7 +1934,7 @@ function mmAt(){}
 const castleDot = makeDot(), innDots = INNS.map(()=> makeDot());
 
 const MM_X0 = -820, MM_Z0 = -820, MM_SPAN = 1640;   // ventana horneada, en metros
-const MM_VIEW = 1040;                                // lo que se ve a zoom 1
+const MM_VIEW = MM_SPAN;                             // zoom 1 = el mapa completo
 const MM_N = 1536;                                   // resolución horneada (1,07 m/px)
 const MMB = { listo: false, alto: null, img: null, contornos: null };
 
@@ -1961,7 +1961,7 @@ function mmMedir(){
   mm.H = Math.max(80, Math.round(r.height));
   mmc.width = Math.round(mm.W * mm.dpr);
   mmc.height = Math.round(mm.H * mm.dpr);
-  mm.escMin = mm.W / MM_VIEW;                 // zoom 1 = el mundo entero
+  mm.escMin = mm.W / MM_VIEW;                 // zoom 1 = el mapa completo
   mm.escTope = mm.W / 90;                     // hasta ~90 m de ancho
   if(!mm.zoom) mm.zoom = 1;
   mm.esc = mm.escMin * mm.zoom;
@@ -1971,7 +1971,7 @@ function mmMedir(){
 const MM_RAMPA = [
   [-9, [46, 62, 58]], [-6, [58, 84, 66]], [-3, [82, 108, 74]],
   [0, [116, 140, 86]], [2.5, [150, 168, 100]], [5, [190, 186, 128]],
-  [7, [166, 158, 140]], [8.6, [205, 210, 214]], [10.5, [240, 246, 250]]
+  [7, [166, 158, 140]], [9.2, [198, 202, 198]], [10.6, [238, 244, 248]]
 ];
 function mmColor(hh){
   for(let i = 1; i < MM_RAMPA.length; i++){
@@ -2095,9 +2095,18 @@ function mmVectores(){
   MM_ZONAS.forEach(zn=>{
     const q = P(zn.cx, zn.cz);
     g.beginPath(); g.arc(q[0], q[1], zn.r * m, 0, Math.PI*2);
-    g.strokeStyle = 'rgba(255,255,255,.20)'; g.lineWidth = 1.6; g.setLineDash([9, 7]);
+    g.strokeStyle = 'rgba(255,255,255,.34)'; g.lineWidth = 2.2; g.setLineDash([9, 7]);
     g.stroke(); g.setLineDash([]);
   });
+  // el reino: contorno de lo jugable, para que se vea dónde acaba el mundo
+  {
+    const q = P(0, 0);
+    g.beginPath(); g.arc(q[0], q[1], 505 * m, 0, Math.PI*2);
+    g.strokeStyle = 'rgba(232,225,205,.45)'; g.lineWidth = 2.4; g.setLineDash([14, 10]);
+    g.stroke(); g.setLineDash([]);
+    g.strokeStyle = 'rgba(12,16,10,.35)'; g.lineWidth = 1;
+    g.stroke();
+  }
   // plaza y castillo
   if(typeof PLAZA_R !== 'undefined'){
     const q = P(0, 0);
@@ -2226,10 +2235,12 @@ function mmDibujar(){
     }
   }
 
+  const k = Math.max(.62, Math.min(1, W / 420));      // en el panel pequeño, marcas más finas
   // posadas
   INNS.forEach(p=>{
     const [x, y] = mmA(p.x, p.z);
-    g.beginPath(); g.moveTo(x, y-4.5); g.lineTo(x+4.5, y); g.lineTo(x, y+4.5); g.lineTo(x-4.5, y);
+    const r = 4.5 * k;
+    g.beginPath(); g.moveTo(x, y-r); g.lineTo(x+r, y); g.lineTo(x, y+r); g.lineTo(x-r, y);
     g.closePath();
     g.fillStyle = (p.zone === 0 && G.lvl < 5) ? 'rgba(255,212,121,.35)' : '#ffd479';
     g.fill(); g.strokeStyle = 'rgba(60,40,10,.85)'; g.lineWidth = 1; g.stroke();
@@ -2237,15 +2248,16 @@ function mmDibujar(){
   // castillo
   {
     const [x, y] = mmA(0, 0);
-    g.fillStyle = '#efe9d8'; g.fillRect(x-4, y-4, 8, 8);
-    g.strokeStyle = '#6d6350'; g.lineWidth = 1; g.strokeRect(x-4, y-4, 8, 8);
+    const r = 4 * k;
+    g.fillStyle = '#efe9d8'; g.fillRect(x-r, y-r, r*2, r*2);
+    g.strokeStyle = '#6d6350'; g.lineWidth = 1; g.strokeRect(x-r, y-r, r*2, r*2);
   }
   // criaturas cargadas
   if(jugando) mobs.forEach(m=>{
     if(m.dead || !m.g.parent) return;
     const [x, y] = mmA(m.g.position.x, m.g.position.z);
     if(x < -8 || y < -8 || x > W+8 || y > H+8) return;
-    g.beginPath(); g.arc(x, y, m.boss ? 4.2 : 2.8, 0, Math.PI*2);
+    g.beginPath(); g.arc(x, y, (m.boss ? 4.2 : 2.7) * k, 0, Math.PI*2);
     g.fillStyle = m.boss ? '#ff7a4d' : '#e0705f';
     g.fill();
     if(m.aggro){ g.strokeStyle = '#ffd36b'; g.lineWidth = 1.2; g.stroke(); }
@@ -2254,7 +2266,7 @@ function mmDibujar(){
   for(const [rid, pl] of remotos){
     if(!pl || !pl.pos) continue;
     const [x, y] = mmA(pl.pos.x, pl.pos.z);
-    g.beginPath(); g.arc(x, y, 3.6, 0, Math.PI*2);
+    g.beginPath(); g.arc(x, y, 3.6 * k, 0, Math.PI*2);
     g.fillStyle = '#8fd6ff'; g.fill();
     g.strokeStyle = 'rgba(10,20,30,.85)'; g.lineWidth = 1; g.stroke();
   }
@@ -2262,6 +2274,8 @@ function mmDibujar(){
   {
     const [x, y] = mmA(me.pos.x, me.pos.z);
     const ang = Math.atan2(-Math.cos(camYaw), -Math.sin(camYaw));   // rumbo de cámara
+    g.beginPath(); g.arc(x, y, 5.5 * k, 0, Math.PI*2);
+    g.fillStyle = 'rgba(255,255,255,.22)'; g.fill();
     g.save(); g.translate(x, y); g.rotate(ang);
     g.beginPath(); g.moveTo(7, 0); g.lineTo(-4.5, 4.6); g.lineTo(-2, 0); g.lineTo(-4.5, -4.6);
     g.closePath();
@@ -2292,7 +2306,13 @@ function mmDibujar(){
     const choca = (x, y, w, h)=> puestos.some(r=> Math.abs(r[0]-x) < (r[2]+w)/2 && Math.abs(r[1]-y) < (r[3]+h)/2);
     const letrero = (txt, x, y, px, col, borde, sombra)=>{
       const w = txt.length * px * .62, h = px + 4;
-      if(choca(x, y, w, h)) return false;
+      let yy = y;
+      if(choca(x, y, w, h)){
+        if(!choca(x, y + 14, w, h)) yy = y + 14;
+        else if(!choca(x, y - 14, w, h)) yy = y - 14;
+        else return false;
+      }
+      y = yy;
       puestos.push([x, y, w, h]);
       g.font = 'bold ' + px + 'px monospace';
       g.lineWidth = 3; g.strokeStyle = sombra; g.strokeText(txt, x, y);
@@ -2307,8 +2327,8 @@ function mmDibujar(){
       const nom = (ZONES[i] && ZONES[i].dom) ? ZONES[i].dom : '';
       if(nom) letrero(nom, x, y + 22, 12, 'rgba(250,245,232,.96)', null, 'rgba(12,16,10,.85)');
     });
-    // y luego las posadas, si caben
-    INNS.forEach(p=>{
+    // y luego las posadas, solo cuando hay sitio (a vista completa no caben)
+    if(mm.esc > .52) INNS.forEach(p=>{
       const [x, y] = mmA(p.x, p.z);
       if(x < -60 || y < -20 || x > W+60 || y > H+20) return;
       letrero(p.nombre || ('P' + p.zone), x, y - 10, 10, 'rgba(255,226,160,.98)', null, 'rgba(12,16,10,.85)');
@@ -2319,7 +2339,7 @@ function mmDibujar(){
   // pie: zona y pista de controles
   const zn = (typeof zonaAt === 'function') ? zonaAt(me.pos.x, me.pos.z) : null;
   mmPie.textContent = mini.classList.contains('big')
-    ? 'rueda: zoom · arrastra: mover · M: cerrar'
+    ? 'rueda: acercar · arrastra: mover · M: cerrar'
     : '';
   g.textAlign = 'start';
 }
@@ -2338,7 +2358,7 @@ mini.addEventListener('wheel', e=>{
   const mx = e.clientX - r.left - r.width/2, my = e.clientY - r.top - r.height/2;
   const antes = mm.esc;
   const zmax = mm.escTope / mm.escMin;
-  mm.zoom = Math.max(.55, Math.min(zmax, mm.zoom * (e.deltaY < 0 ? 1.18 : 1/1.18)));
+  mm.zoom = Math.max(1, Math.min(zmax, mm.zoom * (e.deltaY < 0 ? 1.18 : 1/1.18)));
   mm.esc = mm.escMin * mm.zoom;
   // el punto bajo el cursor se queda quieto
   if(mm.esc > mm.escMin * 1.001){
