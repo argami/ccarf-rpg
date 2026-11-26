@@ -1815,7 +1815,12 @@ function asegurarCodigo(){
 }
 // todo lo que cambia la partida pasa por aquí
 ['pointerdown','keyup'].forEach(ev => addEventListener(ev, ()=>{ if(jugando) marcarSucio(); }, true));
-setInterval(()=>{ if(jugando && sucio) guardarPartida(); }, 6000);
+// La cuota gratuita de KV son 1.000 escrituras al día para TODA la cuenta.
+// A 6 s por guardado, una sola partida la agotaba en 1 h 40 y dejaba sin
+// guardar hasta las flashcards: ahora cada 60 s (1.000 escrituras = ~16 h de
+// juego) y se fuerza el guardado al ganar nivel, al morir y al salir.
+const CADA_GUARDADO = 60000;
+setInterval(()=>{ if(jugando && sucio) guardarPartida(); }, CADA_GUARDADO);
 addEventListener('pagehide', ()=>{ if(jugando) guardarPartida(true); });
 addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden' && jugando) guardarPartida(true); });
 
@@ -3645,6 +3650,7 @@ function cerrarDuelo(res){
   if(ultimoMob){ apartarDelCombate(ultimoMob); ultimoMob = null; }
   toast2(res==='gana' ? 'duelo ganado' : res==='pierde' ? 'duelo perdido'
         : res==='escapa' ? 'escapas del combate' : 'empate');
+  try{ if(jugando) guardarPartida(); }catch(e){}   // el combate se guarda al momento
 }
 
 function morir(){
@@ -3963,7 +3969,8 @@ const selBox = (() => {
 })();
 
 const nivelDeMob = m => m.boss ? 5 : (m.qs === 1 ? 1 : m.qs === 2 ? 2 : 4);
-const DIST_SELECCION = 20;      // ~6 veces el alcance de ataque (3,1 m)
+const DIST_SELECCION = 20;       // ~6 veces el alcance de ataque (3,1 m)
+  const DIST_SELECCION_GUARD = 56; // guardianes: giran a 40 m, fuera del alcance normal
 
 const rayo = new THREE.Raycaster();
 let pulsX = 0, pulsY = 0;
@@ -3974,8 +3981,12 @@ function objetivoEn(cx, cy){
     ((cx - r.left) / r.width) * 2 - 1,
     -((cy - r.top) / r.height) * 2 + 1), cam);
   const grupos = [];
+  // los guardianes del castillo giran a 40 m y el campo de fuerza te frena antes,
+  // asi que se les da mas alcance: si no, no habia forma de clicarlos nunca
+  const alcance = m => m && m.circula ? DIST_SELECCION_GUARD : DIST_SELECCION;
+  const cerca = (m) => Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z) <= alcance(m);
   const cercaDeMi = (x, z) => Math.hypot(x - me.pos.x, z - me.pos.z) <= DIST_SELECCION;
-  for(const m of mobs){ if(!m.dead && m.g.visible && cercaDeMi(m.pos.x, m.pos.z)) grupos.push(m.g); }
+  for(const m of mobs){ if(!m.dead && m.g.visible && cerca(m)) grupos.push(m.g); }
   for(const p of players){ if(p.root && !p.isMe && cercaDeMi(p.pos.x, p.pos.z)) grupos.push(p.root); }
   const hits = rayo.intersectObjects(grupos, true);
   for(const h of hits){
@@ -3998,7 +4009,7 @@ function objetivoEn(cx, cy){
     if(d < mejorD){ mejorD = d; mejor = { kind, ref: obj }; }
   };
   for(const m of mobs){
-    if(m.dead || !m.g.visible || !cercaDeMi(m.pos.x, m.pos.z)) continue;
+    if(m.dead || !m.g.visible || !cerca(m)) continue;
     const alto = Math.max(1, (m.talla || 2) * .5);
     ver(m.pos.x, m.g.position.y + alto, m.pos.z, m, 'mob');
   }
@@ -4083,6 +4094,7 @@ try {
     estado: () => sel, hover: () => hover,
     anillos: () => [anilloHover.visible, anilloSel.visible],
     estado2: () => ({ jugando, duel: G.inDuel, muerto: G.dead, dist: DIST_SELECCION, clics: nClics }),
+    guardDist: () => DIST_SELECCION_GUARD,
   };
   window.__proyecta = (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(cam);
@@ -4112,9 +4124,13 @@ canvasEl.addEventListener('pointerup', e => {
   sel = objetivoEn(e.clientX, e.clientY);
   pintarSel();
   if(sel && sel.kind === 'mob'){
-    // con las criaturas no hay que pulsar E: al clic, pelea
+    // con las criaturas no hay que pulsar E: al clic, pelea... si estas a tiro
     const m = sel.ref;
-    if(!G.inDuel) empezarDuelo('mob', m);
+    const dMob = Math.hypot(m.pos.x - me.pos.x, m.pos.z - me.pos.z);
+    if(dMob > 20){
+      toast2((m.circula ? 'guardián del castillo' : m.name) + ' · nivel ' + nivelDeMob(m) +
+             ' — demasiado lejos: el campo de fuerza no te deja acercarte más');
+    } else if(!G.inDuel) empezarDuelo('mob', m);
   } else if(sel && sel.kind === 'player'){
     toast2('seleccionado: ' + sel.ref.name + ' · pulsa E para retar');
   }
