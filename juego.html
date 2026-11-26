@@ -1934,7 +1934,7 @@ function mmAt(){}
 const castleDot = makeDot(), innDots = INNS.map(()=> makeDot());
 
 const MM_X0 = -820, MM_Z0 = -820, MM_SPAN = 1640;   // ventana horneada, en metros
-const MM_VIEW = MM_SPAN;                             // zoom 1 = el mapa completo
+const MM_VIEW_MINI = 260;                            // el panel pequeño enseña 260 m a tu alrededor
 const MM_N = 1536;                                   // resolución horneada (1,07 m/px)
 const MMB = { listo: false, alto: null, img: null, contornos: null };
 
@@ -1961,7 +1961,8 @@ function mmMedir(){
   mm.H = Math.max(80, Math.round(r.height));
   mmc.width = Math.round(mm.W * mm.dpr);
   mmc.height = Math.round(mm.H * mm.dpr);
-  mm.escMin = mm.W / MM_VIEW;                 // zoom 1 = el mapa completo
+  const vista = mini.classList.contains('big') ? MM_SPAN : MM_VIEW_MINI;
+  mm.escMin = mm.W / vista;                   // grande: el mapa entero · mini: tu alrededor
   mm.escTope = mm.W / 90;                     // hasta ~90 m de ancho
   if(!mm.zoom) mm.zoom = 1;
   mm.esc = mm.escMin * mm.zoom;
@@ -1987,7 +1988,11 @@ function mmHex(v){
   const n = parseInt(v.replace('#',''), 16);
   return [(n>>16)&255, (n>>8)&255, n&255];
 }
-const MM_ZONAS = (typeof ZONES !== 'undefined' ? ZONES : []).map(z=>({ cx:z.cx, cz:z.cz, r:z.r, c:mmHex(z.accent || '#888888') }));
+const MM_ZONAS = (typeof ZONES !== 'undefined' ? ZONES : []).map(z=>({
+  cx: z.cx, cz: z.cz, r: z.r,
+  g0: mmHex((z.ground && z.ground[0]) || z.accent || '#7d9c55'),
+  g1: mmHex((z.ground && z.ground[1]) || z.accent || '#95ae65'),
+}));
 
 /* --- horneado del mapa: 16 bandas para no congelar el juego --- */
 function mmHornear(){
@@ -2007,14 +2012,26 @@ function mmHornear(){
         const hh = h(wx, wz);
         alto[y * MM_N + x] = hh;
         let c = mmColor(hh);
+        // dentro de un dominio manda el suelo real de ese microclima; fuera, la altura
+        let wr = 0, wg = 0, wb = 0, wt = 0;
         for(let i = 0; i < MM_ZONAS.length; i++){
           const zn = MM_ZONAS[i];
           const d = Math.hypot(wx - zn.cx, wz - zn.cz);
-          if(d < zn.r){
-            const t = Math.min(1, (zn.r - d) / (zn.r * .28));   // borde suave
-            const a = .17 * t;
-            c = [c[0] + (zn.c[0]-c[0])*a, c[1] + (zn.c[1]-c[1])*a, c[2] + (zn.c[2]-c[2])*a];
-          }
+          if(d >= zn.r) continue;
+          const a = Math.min(1, (zn.r - d) / 22);        // borde de 22 m
+          const t = .5 + .5 * Math.sin(wx * .07 + wz * .05 + i * 1.7);   // moteado suave
+          wr += (zn.g0[0] + (zn.g1[0] - zn.g0[0]) * t) * a;
+          wg += (zn.g0[1] + (zn.g1[1] - zn.g0[1]) * t) * a;
+          wb += (zn.g0[2] + (zn.g1[2] - zn.g0[2]) * t) * a;
+          wt += a;
+        }
+        if(wt > 0){
+          const w = Math.min(1, wt);
+          c = [c[0]*(1-w) + (wr/wt)*w, c[1]*(1-w) + (wg/wt)*w, c[2]*(1-w) + (wb/wt)*w];
+        } else {
+          // fuera de los dominios el terreno va apagado: así los biomas destacan
+          const lum = c[0]*.299 + c[1]*.587 + c[2]*.114;
+          c = [c[0]*.45 + lum*.55, c[1]*.45 + lum*.55, c[2]*.45 + lum*.55];
         }
         const o = (y * MM_N + x) * 4;
         px[o] = c[0]; px[o+1] = c[1]; px[o+2] = c[2]; px[o+3] = 255;
@@ -2388,7 +2405,9 @@ addEventListener('pointermove', e=>{
 mmbCen.onclick = ()=>{ mm.siguiendo = true; mm.cx = me.pos.x; mm.cz = me.pos.z; };
 const mmAlternar = ()=>{
   mini.classList.toggle('big');
-  mmMedir(); mm.siguiendo = true;
+  mm.zoom = 1; mm.siguiendo = true;
+  mmMedir();
+  if(!mini.classList.contains('big')){ mm.cx = me.pos.x; mm.cz = me.pos.z; }
 };
 mmbBig.onclick = mmAlternar;
 addEventListener('keydown', e=>{
@@ -2402,6 +2421,22 @@ let znHud = 0;
 let near = null;
 let toastT = 0;
 
+// ---------------- vida: se recupera con el tiempo
+let hpAcum = 0;
+function regenVida(dt){
+  if(!jugando || G.dead || G.inDuel) return;
+  if(G.hp >= G.hpMax){ hpAcum = 0; return; }
+  const enPueblo = (typeof enCiudad === 'function') && enCiudad(me.pos.x, me.pos.z);
+  hpAcum += dt * (enPueblo ? 3 : 1.2);        // vida por segundo
+  if(hpAcum >= 1){
+    const n = Math.floor(hpAcum);
+    hpAcum -= n;
+    G.hp = Math.min(G.hpMax, G.hp + n);
+    syncHUD();
+  }
+}
+try { window.__dbg.vida = { get hp(){ return G.hp; }, get hpMax(){ return G.hpMax; }, herir, regen: regenVida }; } catch(e) {}
+
 // ---------------- bucle
 const clock = new THREE.Clock();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
@@ -2414,6 +2449,7 @@ function frame(){
   // duelo
   if(G.inDuel) tickDuelo(dt);
   pvpTick(dt);
+  regenVida(dt);   // la vida vuelve sola, más rápido en las posadas
   if(toastT > 0){ toastT -= dt; if(toastT <= 0 && !near) toast.style.display='none'; }
 
   // jugador
