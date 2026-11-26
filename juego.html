@@ -132,11 +132,6 @@
             border:1px solid rgba(255,255,255,.16);color:#f2e8cf;border-radius:9px;
             padding:9px 12px;font:inherit;font-size:13px;outline:none}
   .cg input:focus{border-color:rgba(200,162,74,.6)}
-  .swatches{display:flex;gap:9px;flex-wrap:wrap}
-  .sw{width:34px;height:34px;border-radius:50%;cursor:pointer;
-      border:2px solid rgba(255,255,255,.18);transition:.15s}
-  .sw:hover{transform:translateY(-2px)}
-  .sw.on{border-color:#e2b95e;box-shadow:0 0 0 3px rgba(226,185,94,.22)}
   .zonas{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px}
   .zz{padding:10px 8px;border-radius:9px;cursor:pointer;text-align:center;
       background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.13);
@@ -1191,56 +1186,6 @@ let PERSONAJE_BASE = 'knight';
   go.onclick = ()=> entrarAlReino(nombre.value.trim() || 'errante');
 })();
 
-// ---------------- piezas del avatar ----------------
-let extras = [];
-function limpiarExtras(){
-  extras.forEach(e=>{ if(e.parent) e.parent.remove(e); });
-  extras = [];
-}
-function pieza(geo, color, opts){
-  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial(Object.assign({
-    color, roughness:.85, metalness:0, flatShading:true }, opts||{})));
-  m.castShadow = true;
-  return m;
-}
-// los nombres de hueso llegan saneados por el loader (mixamorig:Head -> mixamorigHead)
-// alias: los esqueletos de KayKit no usan la nomenclatura de Mixamo
-const ALIAS = {
-  righthand: ['righthand','handr','handright','rhand'],
-  lefthand:  ['lefthand','handl','handleft','lhand'],
-  head:      ['head'],
-  spine2:    ['spine2','spine02','chest','spine'],
-  hips:      ['hips','pelvis','root']
-};
-function buscarHueso(objetivo){
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,'');
-  const want = norm(objetivo);
-  const cands = ALIAS[want] || [want];
-  let hit = null;
-  me.root.traverse(o=>{
-    if(hit || !o.isBone) return;
-    const n = norm(o.name || '');
-    if(cands.some(c => n === c || n.endsWith(c))) hit = o;
-  });
-  return hit;
-}
-function pegarA(boneName, m, dy, dz, dx){
-  const b = buscarHueso(boneName.split(':').pop());
-  if(!b) return null;
-  me.root.updateMatrixWorld(true);
-  const p = new THREE.Vector3();
-  b.getWorldPosition(p);
-  m.position.set(p.x + (dx||0), p.y + (dy||0), p.z + (dz||0));
-  scene.add(m);
-  b.attach(m);          // conserva la transformada del mundo y sigue al hueso
-  // el hueso no debe escalar el accesorio: se normaliza a escala de mundo 1
-  const w = new THREE.Vector3().setFromMatrixScale(m.matrixWorld);
-  if (w.x) m.scale.multiplyScalar(1 / w.x);
-  m.updateMatrixWorld(true);
-  extras.push(m);
-  return m;
-}
-
 function aplicarAvatar(){
   // el personaje ya viene vestido: aquí solo se ajusta su altura
   const k = alturaElegida === 'bajo' ? .9 : alturaElegida === 'alto' ? 1.1 : 1;
@@ -1355,7 +1300,7 @@ prevHalo.position.y = .012;
 prevStage.add(prevPlinth, prevHalo);
 prevStage.position.set(0, prevY, 0);
 scene.add(prevStage);
-window.__dbg = { me, cam, scene, get extras(){ return extras; }, mobs: (typeof mobs!=='undefined'?mobs:[]), bots };
+window.__dbg = { me, cam, scene, mobs: (typeof mobs!=='undefined'?mobs:[]), bots };
 document.body.classList.add('reg');
 document.getElementById('top') && (document.getElementById('top').style.display = 'none');
 document.getElementById('hud') && (document.getElementById('hud').style.display = 'none');
