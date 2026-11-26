@@ -1560,10 +1560,12 @@ const KEYMAP = {
   KeyW:'up', KeyS:'down', KeyA:'left', KeyD:'right',
   ShiftLeft:'run', ShiftRight:'run'
 };
+const enCampo = t => !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
 addEventListener('keydown', e=>{
+  if(!jugando || enCampo(e.target)) return;   // escribir no mueve al personaje
   const k = KEYMAP[e.code]; if(!k) return;
   keys[k] = true; e.preventDefault();
-});
+}, true);
 addEventListener('keyup', e=>{
   const k = KEYMAP[e.code]; if(!k) return;
   keys[k] = false;
