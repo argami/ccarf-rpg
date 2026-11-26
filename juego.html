@@ -229,6 +229,19 @@
           pointer-events:none;font-size:9px;font-weight:600;letter-spacing:.15em;color:#3a2f1c;
           text-shadow:0 1px 0 rgba(255,255,255,.35);opacity:.95}
   @media(max-width:720px){#mmZona{width:132px;right:12px;top:20px;font-size:8px}}
+
+/* ---------- escapar del duelo ---------- */
+#duel .dcard{ position:relative }
+#dFlee{
+  display:none; position:absolute; right:12px; top:10px; z-index:3;
+  background:rgba(0,0,0,.45); border:1px solid rgba(200,162,74,.45);
+  color:#c9a63c; border-radius:7px; padding:4px 9px;
+  font:inherit; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
+  cursor:pointer
+}
+#dFlee b{ color:#e8d7a8; font-weight:600 }
+#dFlee:hover{ background:rgba(200,162,74,.18); border-color:rgba(212,172,86,.85); color:#e2b95e }
+#dFlee.on{ display:inline-block }
 </style>
 
 
@@ -264,6 +277,7 @@
     <div class="dopts" id="dOpts"></div>
     <div class="dtimer"><i id="dTimer"></i></div>
     <div class="dres" id="dRes"></div>
+    <button id="dFlee" title="salir del combate perdiendo un poco de experiencia">escapar <b>−10 exp</b></button>
   </div>
 </div></div>
 <div id="gate">
@@ -3416,7 +3430,7 @@ function pintarDuelo(){
   $('dhpMe').style.width = Math.max(0, G.hp/G.hpMax*100) + '%';
   const foePct = D.kind==='pvp' ? 100 : Math.min(100, D.aciertos / D.necesarias * 100);
   $('dhpFoe').style.width = foePct + '%';
-  const total = D.kind==='pvp' ? 5 : 3;
+  const total = D.kind==='pvp' ? 5 : D.nPreg;
   $('dRounds').innerHTML = Array.from({length: total}, (_,i)=>{
     const r = D.rondaRes[i];
     return '<b class="'+(r===1?'hit':r===0?'miss':'')+'"></b>';
@@ -3426,7 +3440,7 @@ function pintarDuelo(){
 function preguntar(){
   const c = D.preguntas[D.i];
   $('dDom').textContent = 'D' + c.d;
-  $('dNo').textContent = (D.kind==='pvp' ? D.ronda+1 : D.i+1) + '/' + (D.kind==='pvp'?5:3);
+  $('dNo').textContent = (D.kind==='pvp' ? D.ronda+1 : D.i+1) + '/' + (D.kind==='pvp' ? 5 : D.nPreg);
   $('dSc').textContent = c.s;
   $('dQ').textContent = c.q;
   const box = $('dOpts'); box.innerHTML = '';
@@ -3439,6 +3453,7 @@ function preguntar(){
   $('dRes').textContent = '';
   D.locked = false; D.t = T_PREGUNTA;
   $('dTimer').style.width = '100%';
+  if($('dFlee')) $('dFlee').classList.toggle('on', D.kind === 'mob');
 }
 
 function responder(idx){
@@ -3460,6 +3475,7 @@ function responder(idx){
     pintarDuelo();
     if(G.hp <= 0) return terminar('muerte');
     setTimeout(()=>{
+      if(!D) return;
       D.i++;
       if(D.i >= D.nPreg || D.aciertos >= D.necesarias) terminar(D.aciertos >= D.necesarias ? 'gana' : 'pierde');
       else { pintarDuelo(); preguntar(); }
@@ -3500,6 +3516,7 @@ function agotado(){
     pintarDuelo();
     if(G.hp <= 0) return terminar('muerte');
     setTimeout(()=>{
+      if(!D) return;
       D.i++;
       if(D.i >= 3 || D.aciertos >= 2) terminar(D.aciertos >= 2 ? 'gana' : 'pierde');
       else { pintarDuelo(); preguntar(); }
@@ -3549,6 +3566,7 @@ function terminar(res){
     G.hp = Math.min(G.hpMax, G.hp + 15);
     syncHUD();
   }
+  if($('dFlee')) $('dFlee').classList.remove('on');
   $('dRes').innerHTML = lines[res];
   $('dOpts').innerHTML = '<button class="dopt" id="dClose" style="text-align:center">continuar</button>';
   $('dClose').onclick = ()=> cerrarDuelo(res);
@@ -3580,7 +3598,8 @@ function cerrarDuelo(res){
   G.inDuel = false;
   if(res === 'muerte'){ morir(); return; }
   if(ultimoMob){ apartarDelCombate(ultimoMob); ultimoMob = null; }
-  toast2(res==='gana' ? 'duelo ganado' : res==='pierde' ? 'duelo perdido' : 'empate');
+  toast2(res==='gana' ? 'duelo ganado' : res==='pierde' ? 'duelo perdido'
+        : res==='escapa' ? 'escapas del combate' : 'empate');
 }
 
 function morir(){
@@ -3598,6 +3617,42 @@ function morir(){
     toast2('despiertas en la posada con la mitad de la vida');
   }, 3200);
 }
+
+const COSTE_ESCAPE = 10;
+function escaparDuelo(){
+  if(!D || D.kind !== 'mob') return;
+  const suelo = (G.lvl - 1) * EXP_NIVEL;
+  const nuevo = Math.max(suelo, G.exp - COSTE_ESCAPE);
+  const coste = Math.round(G.exp - nuevo);
+  G.exp = nuevo;
+  ultimoMob = D.foe;
+  D = null;
+  syncHUD();
+  const fl = $('dFlee'); if(fl) fl.classList.remove('on');
+  $('dOpts').innerHTML = '';
+  $('dTimer').style.width = '0%';
+  $('dRes').innerHTML = coste
+    ? 'Te escabulles del combate. <b>−' + coste + ' experiencia</b> y a otra cosa.'
+    : 'Te escabulles del combate sin perder experiencia: estabas en el suelo del nivel.';
+  const b = document.createElement('button');
+  b.className = 'dopt'; b.id = 'dClose'; b.style.textAlign = 'center'; b.textContent = 'seguir';
+  b.onclick = ()=> cerrarDuelo('escapa');
+  $('dOpts').appendChild(b);
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && D && D.kind === 'mob'){ e.preventDefault(); escaparDuelo(); }
+});
+
+setTimeout(()=>{
+  try{
+    Object.assign(window.__dbg.duelo, { escapar: escaparDuelo });
+    Object.defineProperty(window.__dbg.duelo, 'exp', {
+      get(){ return G.exp; }, set(v){ G.exp = v; syncHUD(); }, configurable: true,
+    });
+  }catch(e){}
+}, 0);
+
 
 syncHUD();
 try {
