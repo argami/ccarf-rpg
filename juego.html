@@ -356,6 +356,121 @@
   padding:7px 16px; border-radius:7px; cursor:pointer;
   background:rgba(200,162,74,.16); border:1px solid rgba(212,172,86,.6); color:#f2e3b6
 }
+
+/* ---------- franja inferior y barra de exp fuera ---------- */
+#foot{ display:none !important }
+#dFlee{ display:none !important }   /* escapar vive ahora en la botonera */
+#myCode{ display:none !important }  /* el codigo se pide desde la botonera */
+#hud .bars .row:last-child{ display:none !important }
+
+/* ---------- registro de combates (solo lectura) ---------- */
+#log{
+  position:fixed; left:18px; bottom:22px; width:276px; padding:9px 11px;
+  box-sizing:border-box; z-index:40;
+  background:transparent; border:1px solid transparent; border-radius:6px;
+  font:inherit; font-size:10.5px; line-height:1.7; color:#c9c0ac;
+  transition:background .18s ease, border-color .18s ease, box-shadow .18s ease;
+  pointer-events:auto
+}
+#log:hover{
+  background:linear-gradient(180deg,rgba(24,32,42,.92),rgba(14,20,27,.95));
+  border-color:rgba(169,140,68,.5);
+  box-shadow:0 0 0 1px rgba(0,0,0,.5), 0 12px 26px rgba(0,0,0,.45)
+}
+#log.off{ display:none }
+#log .ln{
+  display:block; opacity:.8; text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.7);
+  transition:opacity .18s ease
+}
+#log:hover .ln{ opacity:1; text-shadow:none }
+#log .ln .k{ color:#7f9bb5 }
+#log .ln b{ color:#efe4c9; font-weight:600 }
+#log .ln.win{ color:#a8d8b0 }
+#log .ln.loss{ color:#e8a48c }
+#log .ln.sys{ color:#8f9aa4 }
+#log .ln.pvp{ color:#c9b5e8 }
+#log .ln .sub{
+  display:none; color:#8a8270; padding-left:12px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis
+}
+#log:hover .ln .sub{ display:block }
+#log .ln a{
+  color:#e2c887; text-decoration:none; cursor:pointer;
+  border-bottom:1px dotted rgba(226,200,135,.55)
+}
+
+/* ---------- botonera centrada ---------- */
+#barra{
+  position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+  display:flex; align-items:flex-end; gap:9px; padding:8px 10px; z-index:41;
+  border-radius:8px; user-select:none;
+  background:linear-gradient(180deg,rgba(20,26,33,.9),rgba(10,14,18,.94));
+  border:1px solid rgba(169,140,68,.45); box-shadow:0 12px 30px rgba(0,0,0,.5)
+}
+#barra .b{
+  position:relative; width:46px; height:46px; box-sizing:border-box; padding:0 2px 3px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  border-radius:5px; cursor:pointer; font:inherit; color:#e2cf9d;
+  background:linear-gradient(180deg,#2a3239,#151b21);
+  border:1px solid #6a5a33; box-shadow:inset 0 0 12px rgba(0,0,0,.6)
+}
+#barra .b:hover{ border-color:rgba(224,182,74,.85) }
+#barra .b .gl{ font-size:15px; line-height:1; color:#f0e0b4 }
+#barra .b small{
+  font-size:6.5px; line-height:1.1; letter-spacing:.08em; text-transform:uppercase;
+  color:#c9b98d; text-align:center
+}
+#barra .b .k{
+  position:absolute; right:3px; top:1px; font-size:7.5px; color:#d8c58d;
+  text-shadow:0 1px 2px #000
+}
+#barra .b.esc{
+  display:none; border-color:#b8452f;
+  background:linear-gradient(180deg,#3d211a,#1d100d)
+}
+#barra .b.esc .gl{ color:#f3c0b0 }
+#barra .b.esc.on{ display:flex }
+#barra .b.lit{
+  width:30px; height:30px; padding:0; font-size:11px; color:#a9a193;
+  border-color:rgba(255,255,255,.22); background:rgba(18,22,28,.92)
+}
+#barra .sep{ width:1px; align-self:stretch; margin:2px; background:rgba(169,140,68,.3) }
+
+/* ---------- modal de teclas ---------- */
+#keys{
+  position:fixed; inset:0; z-index:64; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  background:rgba(4,6,10,.78); backdrop-filter:blur(3px)
+}
+#keys.on{ display:flex }
+#keys .kw{
+  width:min(420px,94vw); box-sizing:border-box;
+  background:linear-gradient(180deg,#161b26,#0e1219);
+  border:1px solid rgba(200,162,74,.5); border-radius:12px; overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,.65)
+}
+#keys h2{
+  margin:0; padding:14px 20px 10px; font-size:11px; letter-spacing:.2em;
+  text-transform:uppercase; color:#e2b95e; font-weight:600;
+  border-bottom:1px solid rgba(200,162,74,.22)
+}
+#keys dl{
+  margin:0; padding:12px 20px 14px; display:grid;
+  grid-template-columns:auto 1fr; gap:7px 14px; font-size:12px
+}
+#keys dt{ color:#c79a1f; white-space:nowrap }
+#keys dd{ margin:0; color:#cfc4ab }
+#keys .kfoot{ padding:10px 20px 14px; text-align:right; border-top:1px solid rgba(200,162,74,.16) }
+#keys .kfoot button{
+  font:inherit; font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+  padding:7px 16px; border-radius:7px; cursor:pointer;
+  background:rgba(200,162,74,.16); border:1px solid rgba(212,172,86,.6); color:#f2e3b6
+}
+@media (max-width:720px){
+  #log{ width:200px; font-size:10px; left:12px; bottom:74px }
+  #barra{ gap:6px; padding:6px 8px; bottom:12px }
+  #barra .b{ width:40px; height:40px }
+}
 </style>
 
 
@@ -376,6 +491,32 @@
 <div id="foot"><b>↑ ↓ ← →</b> mover &nbsp; <b>ratón</b> cámara &nbsp; <b>rueda</b> zoom &nbsp; <b>Shift</b> correr &nbsp; <b>E</b> hablar</div>
 <div id="mini"></div>
 <div id="mmZona">D1 · AGENTES</div>
+
+<div id="log"><div id="logIn"></div></div>
+<div id="barra">
+  <button class="b" id="bPvp" title="retar a otro jugador"><span class="k">F1</span><span class="gl">&#9876;</span><small>duelo<br>pvp</small></button>
+  <button class="b esc" id="bEsc" title="salir del combate"><span class="k">F2</span><span class="gl">&#8634;</span><small>escapar</small></button>
+  <button class="b" id="bRep" title="repasar el ultimo combate"><span class="k">F3</span><span class="gl">&#8635;</span><small>repaso</small></button>
+  <span class="sep"></span>
+  <button class="b lit" id="bLog" title="mostrar u ocultar el registro">&#8801;</button>
+  <button class="b lit" id="bCod" title="tu codigo de jugador">&#35;</button>
+  <button class="b lit" id="bKeys" title="teclas y controles">?</button>
+</div>
+<div id="keys"><div class="kw">
+  <h2>teclas y controles</h2>
+  <dl>
+    <dt>&#8593; &#8595; &#8592; &#8594;</dt><dd>mover</dd>
+    <dt>rat&oacute;n</dt><dd>girar la c&aacute;mara</dd>
+    <dt>rueda</dt><dd>zoom</dd>
+    <dt>Shift</dt><dd>correr</dd>
+    <dt>E</dt><dd>hablar en la posada &middot; aceptar un reto</dd>
+    <dt>F1</dt><dd>retar a otro jugador</dd>
+    <dt>F2</dt><dd>escapar del combate</dd>
+    <dt>F3</dt><dd>repaso del &uacute;ltimo combate</dd>
+    <dt>Esc</dt><dd>soltar la selecci&oacute;n</dd>
+  </dl>
+  <div class="kfoot"><button id="keysClose">cerrar</button></div>
+</div></div>
 <div id="toast"></div>
 <div id="duel"><div class="dwrap">
   <div class="dtop">
@@ -3865,6 +4006,7 @@ function terminar(res){
   if(!D) return;
   const d = D; D = null;
   window.__rev = { d, res };
+  try{ registrarCombate(window.__rev); }catch(e){}
   if(d.kind === 'mob' && d.foe) ultimoMob = d.foe;
   const lines = {
     gana:  d.kind==='pvp'
@@ -3981,6 +4123,144 @@ setTimeout(()=>{
 let modalAbierto = false;
 
 // repaso del combate: que preguntaron, que contestaste y que era correcto
+
+// ================= barra de accion + registro de combates =================
+const LOG_MAX = 40;
+window.__revs = window.__revs || [];
+
+function logLinea(cls, html){
+  const box = $('logIn'); if(!box) return;
+  const s = document.createElement('div');
+  s.className = 'ln ' + (cls || '');
+  s.innerHTML = html;
+  box.appendChild(s);
+  while(box.children.length > LOG_MAX) box.removeChild(box.firstChild);
+}
+
+const LOG_KEY = 'ccarf_log_v1';
+
+function pintarCombate(rev, i){
+  try{
+    if(!rev || !rev.d) return;
+    const d = rev.d, preg = d.preguntas || [], mias = d.mias || [];
+    if(!preg.length) return;
+    let ok = 0, ko = 0, mudo = 0;
+    const fallos = [];
+    preg.forEach(function(c,i){
+      if(mias[i] == null){ mudo++; return; }
+      if(mias[i] === c.c) ok++;
+      else { ko++; fallos.push('D' + c.d); }
+    });
+    const rival = (d.foe && d.foe.name) || (d.kind === 'pvp' ? 'otro jugador' : 'la criatura');
+    const res = rev.res || 'fin';
+    const cls = res === 'gana' ? 'win' : (res === 'pierde' || res === 'muerte') ? 'loss' : 'sys';
+    const verbo = res === 'gana' ? 'venciste a'
+                : res === 'pierde' ? 'perdiste con'
+                : res === 'muerte' ? 'ca&iacute;ste ante'
+                : res === 'escapa' ? 'escapaste de' : 'empataste con';
+    let det = [];
+    if(fallos.length) det.push('fallaste ' + fallos.join(' '));
+    if(mudo) det.push(mudo + (mudo === 1 ? ' sin responder' : ' sin responder'));
+    if(!det.length) det.push('sin fallos');
+    logLinea(cls, '[combate] ' + verbo + ' <b>' + rival + '</b> · ' + ok + '/' + preg.length +
+      '<span class="sub">' + det.join(' · ') + ' · <a data-rev="' + i + '">ver combate</a></span>');
+  }catch(e){}
+}
+
+function revSlim(rev){
+  const d = rev.d || {};
+  return {
+    res: rev.res || 'fin',
+    d: {
+      kind: d.kind, necesarias: d.necesarias, mias: d.mias || [],
+      foe: { name: (d.foe && d.foe.name) || null },
+      preguntas: (d.preguntas || []).map(function(c){
+        return { d: c.d, q: c.q, o: c.o, c: c.c, w: c.w };
+      })
+    }
+  };
+}
+
+function guardarLog(){
+  try{
+    const slim = window.__revs.slice(-12).map(revSlim);
+    localStorage.setItem(LOG_KEY, JSON.stringify(slim));
+  }catch(e){}
+}
+
+// cada duelo que termina deja su linea y guarda el repaso para el enlace
+function registrarCombate(rev){
+  if(!rev || !rev.d) return;
+  window.__revs.push(rev);
+  pintarCombate(rev, window.__revs.length - 1);
+  guardarLog();
+}
+
+// al volver al reino, el registro sigue donde lo dejaste
+function restaurarLog(){
+  try{
+    const crudo = localStorage.getItem(LOG_KEY);
+    if(!crudo) return;
+    const arr = JSON.parse(crudo) || [];
+    window.__revs = arr;
+    arr.forEach(function(r,i){ pintarCombate(r, i); });
+  }catch(e){}
+}
+
+
+function toggleLog(){ const l = $('log'); if(l) l.classList.toggle('off'); }
+function toggleMap(){
+  const m = $('mini'), z = $('mmZona'); if(!m) return;
+  const oculto = m.style.display !== 'none';
+  m.style.display = oculto ? 'none' : '';
+  if(z) z.style.display = oculto ? 'none' : '';
+}
+function toggleKeys(force){
+  const k = $('keys'); if(!k) return;
+  const on = (force === undefined) ? !k.classList.contains('on') : !!force;
+  k.classList.toggle('on', on);
+}
+
+function barraTick(){
+  const esc = $('bEsc');
+  if(esc) esc.classList.toggle('on', !!(typeof G !== 'undefined' && G.inDuel));
+}
+setInterval(barraTick, 120);
+barraTick();
+restaurarLog();
+
+addEventListener('keydown', function(ev){
+  if(ev.key === 'F1'){ ev.preventDefault(); $('bPvp').click(); }
+  else if(ev.key === 'F2'){ ev.preventDefault(); if($('bEsc').classList.contains('on')) $('bEsc').click(); }
+  else if(ev.key === 'F3'){ ev.preventDefault(); $('bRep').click(); }
+});
+
+(function conectarBarra(){
+  const pvpB = $('bPvp'), escB = $('bEsc'), repB = $('bRep');
+  if(pvpB) pvpB.onclick = function(){ try{ pvpTecla(); }catch(e){} };
+  if(escB) escB.onclick = function(){ try{ pedirEscape(); }catch(e){} };
+  if(repB) repB.onclick = function(){ try{ if(window.__rev) abrirRevision(window.__rev); }catch(e){} };
+  const logB = $('bLog'); if(logB) logB.onclick = toggleLog;
+  const codB = $('bCod');
+  if(codB) codB.onclick = function(){
+    const m = $('myCode');
+    if(m){ try{ m.click(); }catch(e){} }
+  };
+  const keyB = $('bKeys'); if(keyB) keyB.onclick = function(){ toggleKeys(); };
+  const kc = $('keysClose'); if(kc) kc.onclick = function(){ toggleKeys(false); };
+  const ks = $('keys');
+  if(ks) ks.onclick = function(e){ if(e.target && e.target.id === 'keys') toggleKeys(false); };
+  window.__log = { revs: ()=>window.__revs, restaurar: restaurarLog, linea: logLinea };
+  const log = $('log');
+  if(log) log.onclick = function(e){
+    const el = e.target.closest ? e.target.closest('a[data-rev],a[data-acepta]') : null;
+    if(!el) return;
+    if(el.hasAttribute('data-acepta')){ try{ pvpTecla(); }catch(err){} return; }
+    const r = window.__revs[+el.getAttribute('data-rev')];
+    if(r){ try{ abrirRevision(r); }catch(err){} }
+  };
+})();
+
 function abrirRevision(rev){
   if(!rev || !rev.d) return;
   const d = rev.d, res = rev.res || 'fin';
@@ -4139,6 +4419,7 @@ function pvpPreguntas(seed){
 function pvpRecibe(d){
   if(d.t === 'reto'){
     retoPend = { de: d.de, nombre: d.nombre || 'rival', t: 8 };
+    try{ logLinea('pvp', '[pvp] <b>' + retoPend.nombre + '</b> te reta · <a data-acepta="1">aceptar</a>'); }catch(e){}
     toast2((d.nombre || 'alguien') + ' te reta — pulsa E para aceptar');
     return;
   }
