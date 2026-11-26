@@ -1695,6 +1695,7 @@ function reinoConectar(){
       if(d.t === 'bye') quitarRemoto(d.id);
       return;
     }
+    if(d.t === 'reto' || d.t === 'duelo' || d.t === 'ronda'){ pvpRecibe(d); return; }
     if(d.t === 'join') crearRemoto(d);
     else if(d.t === 'pos'){
       const pl = remotos.get(d.id);
@@ -1966,6 +1967,7 @@ function frame(){
 
   // duelo
   if(G.inDuel) tickDuelo(dt);
+  pvpTick(dt);
   if(toastT > 0){ toastT -= dt; if(toastT <= 0 && !near) toast.style.display='none'; }
 
   // jugador
@@ -2596,12 +2598,167 @@ if(QS.has('ans') && D){
   responder(i0);
 }
 
+// ================== PvP real: E contra otro jugador ==================
+const PVP_RONDAS = 5, PVP_T = 12;
+let pvp = null;              // duelo en curso
+let retoPend = null;         // reto recibido, esperando la E
+
+function pvpEnviar(o){
+  try { if(wsReino && wsReino.readyState === 1) wsReino.send(JSON.stringify(o)); } catch(e) {}
+}
+function pvpOtro(){          // jugador remoto más cercano, a menos de 4 m
+  let best = null;
+  try {
+    for(const [rid, r] of remotos){
+      if(!r || !r.pos) continue;
+      const d = Math.hypot(r.pos.x - me.pos.x, r.pos.z - me.pos.z);
+      if(d < 4 && (!best || d < best.d)) best = { id: rid, name: r.name || 'rival', d };
+    }
+  } catch(e) {}
+  return best;
+}
+// la E reta (o acepta); devuelve true si ya se ha ocupado de la tecla
+function pvpTecla(){
+  if(retoPend){
+    const r = retoPend; retoPend = null;
+    pvpEnviar({ t:'acepta', to: r.de });
+    toast2('aceptas el reto de ' + r.nombre);
+    return true;
+  }
+  const otro = pvpOtro();
+  if(!otro) return false;
+  pvpEnviar({ t:'reto', to: otro.id });
+  toast2('retas a ' + otro.name + ' — espera su respuesta');
+  return true;
+}
+// mismas preguntas para los dos: LCG con la semilla del servidor
+function pvpPreguntas(seed){
+  let x = (seed >>> 0) || 1;
+  const rnd = () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const usadas = new Set(), out = [];
+  let guard = 0;
+  while(out.length < PVP_RONDAS && guard++ < 800){
+    const i = Math.floor(rnd() * POOL.length);
+    if(usadas.has(i)) continue;
+    usadas.add(i); out.push(POOL[i]);
+  }
+  return out;
+}
+function pvpRecibe(d){
+  if(d.t === 'reto'){
+    retoPend = { de: d.de, nombre: d.nombre || 'rival', t: 8 };
+    toast2((d.nombre || 'alguien') + ' te reta — pulsa E para aceptar');
+    return;
+  }
+  if(d.t === 'duelo'){
+    if(G.inDuel) return;
+    pvp = {
+      id: d.d, seed: d.seed, host: d.host, guest: d.guest,
+      otro: d.host === miIdReino ? d.guest : d.host,
+      nombres: d.nombres || {}, preguntas: pvpPreguntas(d.seed),
+      r: 0, t: PVP_T, locked: true, vida: Object.assign({}, d.vida), res: []
+    };
+    G.inDuel = true; document.body.classList.add('induell');
+    duelEl.classList.add('on');
+    $('dFoeName').textContent = String(pvp.nombres[pvp.otro] || 'RIVAL').toUpperCase();
+    $('dKind').textContent = 'duelo real · ' + PVP_RONDAS + ' preguntas';
+    pvpPintar(); pvpPreguntar();
+    return;
+  }
+  if(d.t === 'ronda'){
+    if(!pvp) return;
+    pvp.vida = Object.assign({}, d.vida);
+    const mio = d.host === miIdReino;
+    pvp.res[d.ronda] = mio ? d.host : d.guest;
+    pvpPintar();
+    const linea = mio
+      ? 'tú ' + (d.host ? 'aciertas' : 'fallas') + ' · rival ' + (d.guest ? 'acierta' : 'falla')
+      : 'rival ' + (d.host ? 'acierta' : 'falla') + ' · tú ' + (d.guest ? 'aciertas' : 'fallas');
+    $('dRes').innerHTML = '<b>' + linea + '.</b> vida ' + d.vida[miIdReino] + '–' + d.vida[pvp.otro];
+    if(d.fin){ pvpFin(d.fin); return; }
+    pvp.r = d.ronda + 1; pvp.t = PVP_T; pvp.locked = true;
+    setTimeout(()=>{ if(pvp && pvp.r === d.ronda + 1){ pvpPreguntar(); } }, 1600);
+    return;
+  }
+}
+function pvpPintar(){
+  if(!pvp) return;
+  $('dhpMe').style.width = Math.max(0, pvp.vida[miIdReino] || 0) + '%';
+  $('dhpFoe').style.width = Math.max(0, pvp.vida[pvp.otro] || 0) + '%';
+  $('dRounds').innerHTML = Array.from({length: PVP_RONDAS}, (_, i)=>{
+    const r = pvp.res[i];
+    return '<b class="' + (r === 1 ? 'hit' : r === 0 ? 'miss' : '') + '"></b>';
+  }).join('');
+}
+function pvpPreguntar(){
+  if(!pvp) return;
+  const c = pvp.preguntas[pvp.r];
+  if(!c) return;
+  $('dDom').textContent = 'D' + c.d;
+  $('dNo').textContent = (pvp.r + 1) + '/' + PVP_RONDAS;
+  $('dSc').textContent = c.s;
+  $('dQ').textContent = c.q;
+  const box = $('dOpts'); box.innerHTML = '';
+  c.o.forEach((txt, i)=>{
+    const b = document.createElement('button');
+    b.className = 'dopt'; b.innerHTML = '<b>' + 'ABCDE'[i] + '</b>' + txt;
+    b.onclick = ()=> pvpResponder(i);
+    box.appendChild(b);
+  });
+  $('dRes').textContent = '';
+  pvp.locked = false; pvp.t = PVP_T;
+  $('dTimer').style.width = '100%';
+}
+function pvpResponder(idx){
+  if(!pvp || pvp.locked) return;
+  pvp.locked = true;
+  const c = pvp.preguntas[pvp.r];
+  [...$('dOpts').children].forEach((b, i)=>{
+    b.disabled = true;
+    if(i === c.c) b.classList.add('ok');
+    if(i === idx && idx !== c.c) b.classList.add('bad');
+  });
+  pvpEnviar({ t:'resp', d: pvp.id, r: pvp.r, ok: idx === c.c ? 1 : 0 });
+  $('dRes').innerHTML = 'esperando al rival…';
+}
+function pvpTick(dt){
+  if(retoPend){ retoPend.t -= dt; if(retoPend.t <= 0) retoPend = null; }
+  if(!pvp || pvp.locked) return;
+  pvp.t -= dt;
+  $('dTimer').style.width = Math.max(0, pvp.t / PVP_T * 100) + '%';
+  if(pvp.t <= 0){ pvp.locked = true; pvpEnviar({ t:'timeout', d: pvp.id, r: pvp.r }); }
+}
+function pvpFin(fin){
+  const d = pvp; pvp = null;
+  const gane = fin.ganador === miIdReino;
+  const empate = fin.ganador === 'empate';
+  if(gane){ darExp(fin.exp || 60); G.coins += (fin.coins || 5); }
+  else if(!empate){ herir(10); }
+  syncHUD();
+  $('dRes').innerHTML = empate
+    ? '<b>empate.</b> nadie cede: sin premio.'
+    : gane
+      ? '<b>ganas el duelo.</b> +' + (fin.exp || 60) + ' experiencia, +' + (fin.coins || 5) + ' monedas.'
+      : '<b>pierdes el duelo.</b> ' + String((d && d.nombres[d.otro]) || 'el rival') + ' se lleva la experiencia.';
+  $('dOpts').innerHTML = '<button class="dopt" id="dClose" style="text-align:center">continuar</button>';
+  $('dClose').onclick = ()=>{
+    duelEl.classList.remove('on');
+    document.body.classList.remove('induell');
+    G.inDuel = false;
+  };
+}
+try { window.__dbg.pvp = {
+  get estado(){ return pvp; }, get reto(){ return retoPend; },
+  tecla: pvpTecla, responder: pvpResponder, recibir: pvpRecibe
+}; } catch(e) {}
+
 // tecla E: retar a la criatura cercana
 addEventListener('keydown', e=>{
   if(e.code !== 'KeyE') return;
   if(!jugando) return;
   if(tiendaAbierta){ cerrarTienda(); return; }
   if(G.inDuel || G.dead) return;
+  if(pvpTecla()) return;          // retar o aceptar un duelo con otro jugador
   const dp = posadaCerca ? posadaCerca.d : 1e9;
   const dm = near ? near.d : 1e9;
   if(dp <= dm && posadaCerca){ abrirTienda(posadaCerca.p); return; }
