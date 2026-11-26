@@ -375,7 +375,7 @@ function geoFbm(x, z){
 
 /** Relieve local con un radio de ~22 m: > 0 cresta, < 0 vaguada. */
 function geoLap(x, zz, d){
-  d = d || 22;
+  d = d || 45;
   return (h(x, zz) * 4 - h(x + d, zz) - h(x - d, zz) - h(x, zz + d) - h(x, zz - d)) / 4;
 }
 
@@ -399,8 +399,8 @@ function dominioMezcla(x, zz, lap){
   // ondulación de la frontera: crece desde el centro (donde vale 0, así el centro
   // de cada dominio siempre queda dentro) hasta el borde de la región
   const roncha = (geoNoise(x / 78, zz / 78) - .5) * 2 * .55
-               + (geoNoise(x / 34, zz / 34) - .5) * 2 * .30
-               + (geoNoise(x / 15, zz / 15) - .5) * 2 * .15;
+               + (geoNoise(x / 34, zz / 34) - .5) * 2 * .26
+               + (geoNoise(x / 15, zz / 15) - .5) * 2 * .08;
   let i0 = 0, i1 = 0, d0 = 1e9, d1 = 1e9;
   for(let i = 0; i < ZONES.length; i++){
     const zn = ZONES[i];
@@ -409,11 +409,11 @@ function dominioMezcla(x, zz, lap){
     // vaguadas, los impares se apartan, así el borde serpentea con el terreno
     const relieve = Math.tanh(lap * .55);
     const d = raw * (1 + (i % 2 ? -roncha : roncha) * .30 * Math.min(1, raw / .34))
-                  * (1 + (i % 2 ? -1 : 1) * .30 * Math.min(1, raw / .30) * relieve);
+                  * (1 + (i % 2 ? -1 : 1) * .20 * Math.min(1, raw / .30) * relieve);
     if(d < d0){ d1 = d0; i1 = i0; d0 = d; i0 = i; }
     else if(d < d1){ d1 = d; i1 = i; }
   }
-  const banda = .09;                                       // ~15 m de franja
+  const banda = .34;                                       // ~55 m de degradado entre biomas
   const t = Math.min(1, Math.max(0, (d1 - d0) / banda));
   return [i0, i1, t];
 }
@@ -2082,7 +2082,7 @@ function mmHornear(){
   MMB.img = mmctx.createImageData(MM_N, MM_N);
   const px = MMB.img.data;
   const paso = MM_SPAN / MM_N;
-  const sr = Math.max(2, Math.round(22 / paso));   // radio de relieve, en píxeles
+  const sr = Math.max(2, Math.round(45 / paso));   // radio de relieve, en píxeles
   let y = 0, fase = 0;                             // 0: alturas · 1: color
   const banda = ()=>{
     if(fase === 0){                                // primero el terreno, para poder leer crestas
@@ -2116,7 +2116,7 @@ function mmHornear(){
           const gr0 = .5 + .5 * Math.sin(wx * .21 + dz2[0] * 1.7) * Math.cos(wz * .19 + dz2[0]);
           const gr1 = .5 + .5 * Math.sin(wx * .21 + dz2[1] * 1.7) * Math.cos(wz * .19 + dz2[1]);
           const A = MM_TIERRA[dz2[0]] || MM_TIERRA[0], B = MM_TIERRA[dz2[1]] || MM_TIERRA[0];
-          const mz = .5 + .5 * dz2[2];
+          const mz = .5 + .5 * (dz2[2] * dz2[2] * (3 - 2 * dz2[2]));   // paso suave, sin corte
           for(let k = 0; k < 3; k++){
             const c0 = A[0][k] + (A[1][k] - A[0][k]) * (gr0 * .8);
             const c1 = B[0][k] + (B[1][k] - B[0][k]) * (gr1 * .8);
@@ -2425,15 +2425,9 @@ function mmDibujar(){
 
   // el dominio bajo el cursor se ilumina y dice cómo se llama
   if(typeof mm.hoverZona === 'number' && mm.hoverZona >= 0 && mm.hover){
-    const zn = MM_ZONAS[mm.hoverZona];
-    const [zx, zy] = mmA(zn.cx, zn.cz);
-    const rad = zn.r * mm.esc * 1.08;
-    const grd = g.createRadialGradient(zx, zy, rad * .15, zx, zy, rad);
-    grd.addColorStop(0, 'rgba(255,250,230,.30)');
-    grd.addColorStop(.7, 'rgba(255,250,230,.18)');
-    grd.addColorStop(1, 'rgba(255,250,230,0)');
-    g.fillStyle = grd;
-    g.beginPath(); g.arc(zx, zy, rad, 0, Math.PI*2); g.fill();
+    // se ilumina la región entera tal y como es, no un círculo alrededor del centro
+    g.imageSmoothingEnabled = true;
+    g.drawImage(mmMascara(mm.hoverZona, W, H), 0, 0, W, H);
 
     const zt = ZONES[mm.hoverZona] || {};
     const txt = (zt.dom || '') + (zt.biome ? ' · ' + zt.biome : '');
@@ -2491,6 +2485,36 @@ function mmDibujar(){
 }
 
 try { window.__dbg.mm = mm; window.__dbg.zonas = { idx: dominioIdx, mezcla: dominioMezcla, ZONES }; } catch(e) {}
+
+/* --- máscara de una región: píxeles que de verdad pertenecen a ese dominio --- */
+let mascCache = null;
+function mmMascara(idx, W, H){
+  const N = 96;
+  if(mascCache && mascCache.idx === idx && mascCache.W === W && mascCache.H === H &&
+     Math.abs(mascCache.esc - mm.esc) < mm.esc * .01 &&
+     Math.abs(mascCache.cx - mm.cx) < 8 && Math.abs(mascCache.cz - mm.cz) < 8) return mascCache.cv;
+  const cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const g2 = cv.getContext('2d');
+  const img = g2.createImageData(N, N), d = img.data;
+  const anchoW = W / mm.esc, altoW = H / mm.esc;
+  for(let y = 0; y < N; y++){
+    const wz = mm.cz + (y / (N - 1) - .5) * altoW;
+    for(let x = 0; x < N; x++){
+      const wx = mm.cx + (x / (N - 1) - .5) * anchoW;
+      const o = (y * N + x) * 4;
+      let dentro = 0;
+      if(typeof dominioMezcla === 'function'){
+        const m = dominioMezcla(wx, wz);
+        dentro = m[0] === idx ? 1 : (m[1] === idx ? m[2] * .45 : 0);
+      }
+      d[o] = 255; d[o+1] = 246; d[o+2] = 214;
+      d[o+3] = Math.round(dentro * 96);
+    }
+  }
+  g2.putImageData(img, 0, 0);
+  mascCache = { cv, idx, W, H, esc: mm.esc, cx: mm.cx, cz: mm.cz };
+  return cv;
+}
 
 /* --- qué dominio hay bajo el cursor --- */
 function mmZonaEn(x, z){
